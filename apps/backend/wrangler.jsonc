@@ -1,16 +1,23 @@
 {
-    "$schema": "https://www.unpkg.com/wrangler/config-schema.json",
-    "name": "black-shore-backend",
-    "main": "src/index.ts",
-    "compatibility_date": "2026-10-01",
-    "compatibility_flags": [
-        "nodejs_compat"
-    ],
-    "observability": {
-        "enabled": true
-    },
-    "vars": {
-        "ENVIRONMENT": "development"
-    }
-    // KV namespace & secrets akan ditambahkan nanti
+	"$schema": "https://www.unpkg.com/wrangler/config-schema.json",
+	"name": "black-shore-backend",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true
+	},
+	"vars": {
+		"ENVIRONMENT": "development"
+	},
+	"d1_databases": [
+		{
+			"binding": "black_shore_db",
+			"database_name": "black-shore-db",
+			"database_id": "5003ea65-c08c-41f4-ab5e-eb612ac4be66"
+		}
+	]
+	// KV namespace & secrets akan ditambahkan nanti
 }
