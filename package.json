@@ -1,0 +1,27 @@
+{
+	"name": "black-shore",
+	"version": "0.1.0",
+	"private": true,
+	"description": "AI-powered digital office agent — bendahara & sekertaris dalam satu karakter 3D",
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
+	"scripts": {
+		"dev:backend": "bun --filter @black-shore/backend dev",
+		"dev:frontend": "bun --filter @black-shore/frontend dev",
+		"dev": "bun run --filter '*' dev",
+		"build:backend": "bun --filter @black-shore/backend build",
+		"build:frontend": "bun --filter @black-shore/frontend build",
+		"build": "bun run --filter '*' build",
+		"deploy:backend": "bun --filter @black-shore/backend deploy",
+		"lint": "bun run --filter '*' lint",
+		"typecheck": "bun run --filter '*' typecheck"
+	},
+	"devDependencies": {
+		"typescript": "^5.7.0"
+	},
+	"engines": {
+		"bun": ">=1.2.0"
+	}
+}
