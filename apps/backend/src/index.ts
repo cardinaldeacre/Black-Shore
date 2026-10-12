@@ -8,6 +8,7 @@ import { logger } from 'hono/logger'
 
 export type Bindings = {
     ENVIRONMENT: string
+    black_shore_db: D1Database
     // Akan ditambahkan:
     // GEMINI_API_KEY: string
     // SUPABASE_URL: string
