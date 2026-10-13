@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { listTransaksi, createTransaksi, getSummary } from './lib/db'
+import { spreadsheetRoutes } from './routes/spreadsheet'
 
 export type Bindings = {
     ENVIRONMENT: string
@@ -30,6 +31,7 @@ app.get('/', (c) => {
 
 app.get('/health', (c) => c.json({ status: 'healthy' }))
 
+// Transaksi
 app.get('/api/transactions', async (c) => {
     const bulan = c.req.query('bulan')
     const limit = c.req.query('limit') ? Number(c.req.query('limit')) : undefined
@@ -43,11 +45,15 @@ app.post('/api/transactions', async (c) => {
     return c.json({ data }, 201)
 })
 
+// Summary
 app.get('/api/summary', async (c) => {
     const bulan = c.req.query('bulan') ?? new Date().toISOString().slice(0, 7)
     const data = await getSummary(c.env.black_shore_db, bulan)
     return c.json({ data })
 })
+
+// Spreadsheet (HTML untuk iframe)
+app.route('/api/spreadsheet', spreadsheetRoutes)
 
 app.notFound((c) => c.json({ error: 'Not Found', path: c.req.path }, 404))
 

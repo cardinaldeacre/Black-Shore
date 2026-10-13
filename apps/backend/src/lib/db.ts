@@ -87,3 +87,31 @@ export async function logPercakapan(
         )
         .run()
 }
+
+export async function getTransaksiByBulan(
+    db: D1Database,
+    bulan: string // 'YYYY-MM'
+): Promise<Transaksi[]> {
+    const result = await db
+        .prepare(
+            `SELECT * FROM transaksi
+       WHERE strftime('%Y-%m', tanggal) = ?
+       ORDER BY tanggal ASC, created_at ASC`
+        )
+        .bind(bulan)
+        .all<Transaksi>()
+
+    return result.results
+}
+
+export async function getAvailableMonths(db: D1Database): Promise<string[]> {
+    const result = await db
+        .prepare(
+            `SELECT DISTINCT strftime('%Y-%m', tanggal) as bulan
+       FROM transaksi
+       ORDER BY bulan DESC`
+        )
+        .all<{ bulan: string }>()
+
+    return result.results.map((r) => r.bulan)
+}
