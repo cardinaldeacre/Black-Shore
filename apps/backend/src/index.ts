@@ -7,6 +7,9 @@ import { spreadsheetRoutes } from './routes/spreadsheet'
 export type Bindings = {
     ENVIRONMENT: string
     black_shore_db: D1Database
+    OAUTH_KV: KVNamespace
+    GOOGLE_CLIENT_ID: string
+    GOOGLE_CLIENT_SECRET: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
