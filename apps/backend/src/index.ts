@@ -1,33 +1,23 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
-
-// ============================================================
-// Black Shore — Backend Agent
-// ============================================================
+import { listTransaksi, createTransaksi, getSummary } from './lib/db'
 
 export type Bindings = {
     ENVIRONMENT: string
     black_shore_db: D1Database
-    // Akan ditambahkan:
-    // GEMINI_API_KEY: string
-    // SUPABASE_URL: string
-    // SUPABASE_KEY: string
-    // OAUTH_KV: KVNamespace
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
 
-// Middleware
 app.use('*', logger())
 app.use('*', cors({
-    origin: ['http://localhost:3000', 'https://black-shore.vercel.app'],
+    origin: ['http://localhost:3000'],
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
 }))
 
-// Health check
 app.get('/', (c) => {
     return c.json({
         name: 'Black Shore',
@@ -38,31 +28,32 @@ app.get('/', (c) => {
     })
 })
 
-app.get('/health', (c) => {
-    return c.json({ status: 'healthy' })
+app.get('/health', (c) => c.json({ status: 'healthy' }))
+
+app.get('/api/transactions', async (c) => {
+    const bulan = c.req.query('bulan')
+    const limit = c.req.query('limit') ? Number(c.req.query('limit')) : undefined
+    const data = await listTransaksi(c.env.black_shore_db, { bulan, limit })
+    return c.json({ data })
 })
 
-// Placeholder routes — akan diisi nanti
-app.get('/api/transactions', (c) => {
-    return c.json({ message: 'TODO: list transactions', data: [] })
+app.post('/api/transactions', async (c) => {
+    const body = await c.req.json()
+    const data = await createTransaksi(c.env.black_shore_db, body)
+    return c.json({ data }, 201)
 })
 
-app.post('/api/chat', (c) => {
-    return c.json({ message: 'TODO: chat endpoint', reply: 'Not implemented yet' })
+app.get('/api/summary', async (c) => {
+    const bulan = c.req.query('bulan') ?? new Date().toISOString().slice(0, 7)
+    const data = await getSummary(c.env.black_shore_db, bulan)
+    return c.json({ data })
 })
 
-// 404 handler
-app.notFound((c) => {
-    return c.json({ error: 'Not Found', path: c.req.path }, 404)
-})
+app.notFound((c) => c.json({ error: 'Not Found', path: c.req.path }, 404))
 
-// Error handler
 app.onError((err, c) => {
     console.error(`[Black Shore] Error:`, err)
-    return c.json({
-        error: 'Internal Server Error',
-        message: err.message,
-    }, 500)
+    return c.json({ error: 'Internal Server Error', message: err.message }, 500)
 })
 
 export default app
