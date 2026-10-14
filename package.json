@@ -8,7 +8,7 @@
 		"packages/*"
 	],
 	"scripts": {
-		"dev": "bun run dev:backend",
+		"dev": "concurrently -k -p \"[{name}]\" -n \"BACKEND,FRONTEND\" -c \"cyan,magenta\" \"bun run dev:backend\" \"bun run dev:frontend\"",
 		"dev:backend": "cd apps/backend && npx wrangler dev --remote",
 		"dev:frontend": "cd apps/frontend && bun run dev",
 		"build:backend": "cd apps/backend && npx wrangler deploy --dry-run --outdir=dist",
@@ -24,6 +24,7 @@
 		"lint": "bun run --filter '*' lint"
 	},
 	"devDependencies": {
+		"concurrently": "^10.0.6",
 		"typescript": "^5.7.0"
 	},
 	"engines": {
