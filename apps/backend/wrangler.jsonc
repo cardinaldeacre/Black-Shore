@@ -22,8 +22,7 @@
 	"kv_namespaces": [
 		{
 			"binding": "OAUTH_KV",
-			"id": "3d5fcff0b31244a6a7c9a7f32c6d59a1",
-			"remote": true
+			"id": "3d5fcff0b31244a6a7c9a7f32c6d59a1"
 		}
 	]
 	// KV namespace & secrets akan ditambahkan nanti
