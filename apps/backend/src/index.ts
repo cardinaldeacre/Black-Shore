@@ -5,6 +5,7 @@ import { listTransaksi, createTransaksi, getSummary } from './lib/db'
 import { spreadsheetRoutes } from './routes/spreadsheet'
 import { authRoutes } from './routes/auth'
 import { chatRoutes } from './routes/chat'
+import { documentsRoutes } from './routes/document'
 
 export type Bindings = {
     ENVIRONMENT: string
@@ -13,6 +14,7 @@ export type Bindings = {
     GOOGLE_CLIENT_ID: string
     GOOGLE_CLIENT_SECRET: string
     GEMINI_API_KEY: string
+    AI: any
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -79,6 +81,9 @@ app.get('/api/summary', async (c) => {
 
 // Spreadsheet 
 app.route('/api/spreadsheet', spreadsheetRoutes)
+
+// Documents
+app.route('/api/documents', documentsRoutes)
 
 // 404 & error handler
 app.notFound((c) => {
