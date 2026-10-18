@@ -4,6 +4,7 @@ import { logger } from 'hono/logger'
 import { listTransaksi, createTransaksi, getSummary } from './lib/db'
 import { spreadsheetRoutes } from './routes/spreadsheet'
 import { authRoutes } from './routes/auth'
+import { chatRoutes } from './routes/chat'
 
 export type Bindings = {
     ENVIRONMENT: string
@@ -52,6 +53,8 @@ app.get('/debug/routes', (c) => {
 
 // Auth routes
 app.route('/auth', authRoutes)
+
+app.route('/api/chat', chatRoutes)
 
 // Transaksi
 app.get('/api/transactions', async (c) => {
