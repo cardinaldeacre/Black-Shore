@@ -95,9 +95,9 @@ authRoutes.get('/google/callback', async (c) => {
         ? 'http://localhost:3000'
         : 'https://black-shore-frontend.vercel.app'
 
-    console.log(`[DEBUG] Frontend URL terpilih: ${frontendUrl}`)
-
-    return c.redirect(`${frontendUrl}?connected=true&email=${encodeURIComponent(email)}`)
+    return c.redirect(
+        `${frontendUrl}?connected=true&userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}`
+    )
 })
 
 // GET /auth/status?userId=xxx
