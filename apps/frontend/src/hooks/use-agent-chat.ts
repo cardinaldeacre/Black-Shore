@@ -56,6 +56,7 @@ export function useAgentChat(userId: string) {
                 }
                 setMessages((prev) => [...prev, agentMsg])
             } catch (err: any) {
+                console.error('getStatus gagal:', err)
                 setMessages((prev) => [
                     ...prev,
                     {
