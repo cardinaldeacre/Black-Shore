@@ -3,130 +3,74 @@ import type { Bindings } from '../index'
 
 export const authRoutes = new Hono<{ Bindings: Bindings }>()
 
-// GET /auth/google
 authRoutes.get('/google/signin', (c) => {
-    const origin = new URL(c.req.url).origin
-    const params = new URLSearchParams({
-        client_id: c.env.GOOGLE_CLIENT_ID,
-        redirect_uri: `${origin}/auth/google/callback`,
-        response_type: 'code',
-        scope: 'openid email profile https://www.googleapis.com/auth/documents',
-        access_type: 'offline',
-        prompt: 'consent',
-    })
-
-    return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
+    const redirectUri = `${new URL(c.req.url).origin}/auth/google/callback`
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${c.env.GOOGLE_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=email profile https://www.googleapis.com/auth/documents&access_type=offline&prompt=consent`
+    return c.redirect(url)
 })
 
-// GET /auth/google/callback
 authRoutes.get('/google/callback', async (c) => {
-
     const code = c.req.query('code')
-    const error = c.req.query('error')
+    if (!code) return c.text('Auth code hilang bro!', 400)
 
-    if (error) {
-        return c.json({ error, message: 'OAuth denied by user' }, 400)
-    }
+    try {
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: c.env.GOOGLE_CLIENT_ID,
+                client_secret: c.env.GOOGLE_CLIENT_SECRET,
+                redirect_uri: `${new URL(c.req.url).origin}/auth/google/callback`,
+                grant_type: 'authorization_code',
+                code: code,
+            }),
+        })
+        const tokens: any = await tokenRes.json()
 
-    if (!code) {
-        return c.json({ error: 'missing_code', message: 'No code provided' }, 400)
-    }
+        const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: `Bearer ${tokens.access_token}` },
+        })
+        const userInfo: any = await userRes.json()
 
-    const origin = new URL(c.req.url).origin
+        const userId = userInfo.email
+        const email = userInfo.email
 
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            code,
-            client_id: c.env.GOOGLE_CLIENT_ID,
-            client_secret: c.env.GOOGLE_CLIENT_SECRET,
-            redirect_uri: `${origin}/auth/google/callback`,
-            grant_type: 'authorization_code',
-        }),
-    })
+        const existingData = await c.env.OAUTH_KV.get(`oauth:google:${userId}`, 'json') as any
+        const finalRefreshToken = tokens.refresh_token || (existingData ? existingData.refresh_token : null)
 
-    if (!tokenResponse.ok) {
-        const err = await tokenResponse.text()
-        console.error('[Black Shore] Token exchange failed:', err)
-        return c.json({ error: 'token_exchange_failed', details: err }, 500)
-    }
+        if (!finalRefreshToken) {
+            return c.text('Gagal dapat refresh_token. Hapus akses aplikasi di Akun Google lalu login ulang!', 400)
+        }
 
-    const tokens = (await tokenResponse.json()) as {
-        access_token: string
-        refresh_token?: string
-        expires_in: number
-        scope: string
-        id_token: string
-    }
-
-    const idTokenPayload = tokens.id_token.split('.')[1]
-    if (!idTokenPayload) {
-        return c.json({ error: 'invalid_id_token' }, 500)
-    }
-
-    const idPayload = JSON.parse(
-        atob(idTokenPayload.replace(/-/g, '+').replace(/_/g, '/'))
-    )
-
-    const userId = idPayload.sub
-    const email = idPayload.email
-
-    if (tokens.refresh_token) {
         await c.env.OAUTH_KV.put(
             `oauth:google:${userId}`,
             JSON.stringify({
-                refresh_token: tokens.refresh_token,
-                email,
-                scopes: tokens.scope.split(' '),
-                connected_at: new Date().toISOString(),
+                access_token: tokens.access_token,
+                refresh_token: finalRefreshToken,
             })
         )
-        console.log(`[Black Shore] OAuth connected for ${email} (${userId})`)
-    } else {
-        console.warn(
-            `[Black Shore] No refresh_token for ${email}. ` +
-            `User mungkin sudah pernah authorize sebelumnya. ` +
-            `Coba revoke akses di https://myaccount.google.com/permissions lalu login ulang.`
+
+        const frontendUrl = c.env.ENVIRONMENT === 'development'
+            ? 'http://localhost:3000'
+            : 'https://black-shore-frontend.vercel.app'
+
+        return c.redirect(
+            `${frontendUrl}?connected=true&userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}`
         )
+    } catch (err: any) {
+        return c.text(`OAuth Error: ${err.message}`, 500)
     }
-
-    const frontendUrl = c.env.ENVIRONMENT === 'development'
-        ? 'http://localhost:3000'
-        : 'https://black-shore-frontend.vercel.app'
-
-    return c.redirect(
-        `${frontendUrl}?connected=true&userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}`
-    )
 })
 
-// GET /auth/status?userId=xxx
 authRoutes.get('/status', async (c) => {
     const userId = c.req.query('userId')
-    if (!userId) {
-        return c.json({ connected: false, reason: 'no_user_id' })
-    }
-
-    const stored = await c.env.OAUTH_KV.get(`oauth:google:${userId}`)
-    if (!stored) {
-        return c.json({ connected: false })
-    }
-
-    const data = JSON.parse(stored)
-    return c.json({
-        connected: true,
-        email: data.email,
-        connected_at: data.connected_at,
-    })
+    if (!userId) return c.json({ connected: false })
+    const data = await c.env.OAUTH_KV.get(`oauth:google:${userId}`)
+    return c.json({ connected: !!data })
 })
 
-// POST /auth/disconnect?userId=xxx
 authRoutes.post('/disconnect', async (c) => {
     const userId = c.req.query('userId')
-    if (!userId) {
-        return c.json({ error: 'missing_user_id' }, 400)
-    }
-
-    await c.env.OAUTH_KV.delete(`oauth:google:${userId}`)
+    if (userId) await c.env.OAUTH_KV.delete(`oauth:google:${userId}`)
     return c.json({ success: true })
 })
