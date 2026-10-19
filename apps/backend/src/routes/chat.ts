@@ -64,7 +64,17 @@ Tanggal Hari Ini: ${hariIni}
             if (!userId || userId === '123' || userId === 'guest') {
                 aiResponse.reply_text = 'Kamu belum konek akun Google nih! Klik tombol "Connect Google" di pojok kanan atas dulu ya biar aku bisa bikin Google Docs.'
             } else {
-                const accessToken = await getValidAccessToken(c.env, userId)
+                let accessToken: string
+                try {
+                    accessToken = await getValidAccessToken(c.env, userId)
+                } catch (e: any) {
+                    console.error('[Black Shore] Token error:', e.message)
+                    return c.json({
+                        success: false,
+                        needs_auth: true,
+                        reply: 'Koneksi Google kamu belum valid atau sudah kedaluwarsa. Klik "Connect Google" lagi ya.',
+                    }, 401)
+                }
                 const docTitle = aiResponse.metadata?.judul_dokumen || `Laporan Keuangan Black Shore - ${bulanIni}`
 
                 const barisTransaksi = recentTx.length > 0
