@@ -11,19 +11,21 @@ const STORAGE_KEYS = {
 export function useAuthSession(onLoginSuccess?: () => void) {
     const [userId, setUserId] = useState<string>('guest')
     const [userEmail, setUserEmail] = useState<string | null>(null)
+    const [isConnected, setIsConnected] = useState(false)
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search)
-        const connected = params.get('connected')
-        const urlUserId = params.get('userId')
-        const urlEmail = params.get('email')
 
-        if (connected === 'true' && urlUserId) {
-            localStorage.setItem(STORAGE_KEYS.USER_ID, urlUserId)
+        if (params.get('connected') === 'true') {
+            const urlEmail = params.get('email')
+            const resolvedUserId = params.get('userId') || urlEmail || 'guest'
+
+            localStorage.setItem(STORAGE_KEYS.USER_ID, resolvedUserId)
             if (urlEmail) localStorage.setItem(STORAGE_KEYS.USER_EMAIL, urlEmail)
-            setUserId(urlUserId)
+
+            setUserId(resolvedUserId)
             setUserEmail(urlEmail)
-            window.history.replaceState({}, '', '/')
+            window.history.replaceState({}, '', window.location.pathname)
             onLoginSuccess?.()
             return
         }
@@ -33,6 +35,35 @@ export function useAuthSession(onLoginSuccess?: () => void) {
         if (savedId) setUserId(savedId)
         if (savedEmail) setUserEmail(savedEmail)
     }, [onLoginSuccess])
+
+    useEffect(() => {
+        if (userId === 'guest') {
+            setIsConnected(false)
+            return
+        }
+
+        let cancelled = false
+        apiService
+            .getStatus(userId)
+            .then((res) => {
+                if (cancelled) return
+                setIsConnected(res.connected)
+                if (!res.connected) {
+                    localStorage.removeItem(STORAGE_KEYS.USER_ID)
+                    localStorage.removeItem(STORAGE_KEYS.USER_EMAIL)
+                    setUserId('guest')
+                    setUserEmail(null)
+                }
+            })
+            .catch((err) => {
+                console.error('getStatus gagal:', err)
+                if (!cancelled) setIsConnected(false)
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [userId])
 
     const loginWithGoogle = useCallback(() => {
         window.location.href = apiService.getGoogleSignInUrl()
@@ -44,13 +75,8 @@ export function useAuthSession(onLoginSuccess?: () => void) {
         localStorage.removeItem(STORAGE_KEYS.USER_EMAIL)
         setUserId('guest')
         setUserEmail(null)
+        setIsConnected(false)
     }, [userId])
 
-    return {
-        userId,
-        userEmail,
-        isConnected: Boolean(userEmail),
-        loginWithGoogle,
-        logoutGoogle,
-    }
+    return { userId, userEmail, isConnected, loginWithGoogle, logoutGoogle }
 }
