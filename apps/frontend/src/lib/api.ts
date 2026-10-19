@@ -1,5 +1,8 @@
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787'
-
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
+console.log('BACKEND_URL:', BACKEND_URL)
+if (!BACKEND_URL) {
+    throw new Error('NEXT_PUBLIC_BACKEND_URL is not defined')
+}
 export interface RawChatResponse {
     success: boolean
     reply: string
@@ -19,6 +22,17 @@ export const apiService = {
     resolveBackendUrl(relativePath?: string | null): string | null {
         if (!relativePath) return null
         return relativePath.startsWith('http') ? relativePath : `${BACKEND_URL}${relativePath}`
+    },
+
+    getStatus(userId: string): Promise<{ connected: boolean }> {
+        return fetch(`${BACKEND_URL}/auth/status?userId=${encodeURIComponent(userId)}`)
+            .then((res) => res.json())
+            .then((data) => {
+                if (!data || typeof data.connected !== 'boolean') {
+                    throw new Error('Invalid response from server')
+                }
+                return data
+            })
     },
 
     async sendChat(message: string, userId: string): Promise<RawChatResponse> {
