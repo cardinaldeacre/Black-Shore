@@ -28,6 +28,7 @@ app.use(
             'http://localhost:3000',
             'http://localhost:8787',
             'https://black-shore-frontend.vercel.app',
+            'https://black-shore-backend.cardinaldeacre.workers.dev',
         ],
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: ['Content-Type', 'Authorization'],
