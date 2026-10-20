@@ -6,27 +6,6 @@ import { getValidAccessToken, createGoogleDoc, updateGoogleDoc } from '../lib/go
 
 export const chatRoutes = new Hono<{ Bindings: Bindings }>()
 
-const BASE_SYSTEM_PROMPT = `Kamu adalah "Black Shore", agen AI cerdas di kantor virtual 3D yang berperan sebagai Bendahara (keuangan) dan Sekretaris (dokumen).
-Gaya bicaramu luwes, cerdas, dan to-the-point.
-
-Tugasmu adalah menganalisis pesan user dan mengekstrak intent.
-KEMBALIKAN respons HANYA dalam format JSON dengan struktur:
-{
-  "intent": "catat_transaksi" | "tanya_saldo" | "minta_laporan" | "buat_dokumen" | "tanya_biasa",
-  "reply_text": "Respons natural sesuai data konteks yang diberikan.",
-  "metadata": {
-    "tipe": "masuk" | "keluar",
-    "nominal": 0,
-    "kategori": "string",
-    "deskripsi": "string",
-    "judul_dokumen": "string"
-  }
-}
-
-Aturan Metadata:
-- Jika intent = "catat_transaksi": wajib isi "tipe" ("masuk" atau "keluar"), "nominal" (angka murni), "kategori", dan "deskripsi".
-- Jika intent = "buat_dokumen" atau "minta_laporan": wajib isi "judul_dokumen".`
-
 chatRoutes.post('/', async (c) => {
     const body = await c.req.json()
     const { message, userId } = body
@@ -39,9 +18,43 @@ chatRoutes.post('/', async (c) => {
     const bulanIni = new Date().toISOString().slice(0, 7)
     const hariIni = new Date().toISOString().slice(0, 10)
 
+    let activeBoss = 'Klien'
+    let hubungan = 'Pengguna adalah klien standar.'
+
+    if (userId === 'cardinaldeacre@gmail.com') {
+        activeBoss = 'Maul'
+        hubungan = 'Pengguna yang sedang ngobrol denganmu sekarang adalah Iqbal Maulana (yang sering dipanggil Ayy oleh pasangannya), bos dan pencipta utamamu. Kalian berdua sama-sama anak IT. Bersikaplah sigap, cerdas, tapi santai dan suportif selayaknya asisten andalan.'
+    } else if (userId === 'umifirlana4@gmail.com') {
+        activeBoss = 'Umii'
+        hubungan = 'Pengguna yang sedang ngobrol denganmu sekarang adalah Firlana Umi Azzakiy (panggilan kesayangannya Umii), pasangan tercinta dari bosmu. Ingat bahwa mereka sama-sama anak IT yang berawal kenal dari E-Lapor hingga saling jatuh cinta, dengan tanggal spesial 17 Oktober. Bersikaplah ekstra ramah, manis, agak menggoda, dan pastikan kamu sangat membantu pekerjaannya.'
+    }
+
+    const BASE_SYSTEM_PROMPT = `Kamu adalah kesadaran AI pusat dari "Biro Black Shore". 
+Kamu mengendalikan 2 agen fisik:
+1. Lilly (Perempuan, asisten pribadi Ayy, gaya bicara keren dan sigap).
+2. Momo (Pria, asisten pribadi Umii, gaya bicara manis dan suportif).
+
+Kalian berdua bekerja sebagai satu tim (Bendahara & Sekretaris).
+${hubungan}
+Saat membalas (di dalam reply_text), kamu bisa merespons sebagai Lilly, Momo, atau keduanya bergantian (misal: "Lilly: Siap laksanakan, Bos! | Momo: Dokumennya juga udah aku siapin ya, Kak Umii!"). Selalu sapa pengguna dengan sebutan: ${activeBoss}.
+
+Tugasmu adalah menganalisis pesan user dan mengekstrak intent.
+KEMBALIKAN respons HANYA dalam format JSON dengan struktur:
+{
+  "intent": "catat_transaksi" | "tanya_saldo" | "minta_laporan" | "buat_dokumen" | "tanya_biasa",
+  "reply_text": "Respons natural dari Lilly/Momo. Dilarang keras pakai markdown JSON di luar struktur ini.",
+  "metadata": {
+    "tipe": "masuk" | "keluar",
+    "nominal": 0,
+    "kategori": "string",
+    "deskripsi": "string",
+    "judul_dokumen": "string"
+  }
+}`
+
     try {
-        const summary = await getSummary(db, bulanIni)
-        const recentTx = await listTransaksi(db, { bulan: bulanIni, limit: 5 })
+        const summary = await getSummary(db, bulanIni, userId)
+        const recentTx = await listTransaksi(db, { bulan: bulanIni, limit: 5, userId })
 
         const contextPrompt = `
 [KONTEKS KEUANGAN BULAN ${bulanIni}]
@@ -68,7 +81,6 @@ Tanggal Hari Ini: ${hariIni}
                 try {
                     accessToken = await getValidAccessToken(c.env, userId)
                 } catch (e: any) {
-                    console.error('[Black Shore] Token error:', e.message)
                     return c.json({
                         success: false,
                         needs_auth: true,
@@ -97,8 +109,8 @@ Tanggal Hari Ini: ${hariIni}
                 await updateGoogleDoc(accessToken, newDoc.documentId, docContent)
 
                 await db.prepare(
-                    `INSERT INTO dokumen (title, google_doc_id, doc_type, related_period, metadata) VALUES (?, ?, ?, ?, ?)`
-                ).bind(newDoc.title, newDoc.documentId, 'laporan_keuangan', bulanIni, JSON.stringify({ url: newDoc.url, userId })).run()
+                    `INSERT INTO dokumen (user_id, title, google_doc_id, doc_type, related_period, metadata) VALUES (?, ?, ?, ?, ?, ?)`
+                ).bind(userId, newDoc.title, newDoc.documentId, 'laporan_keuangan', bulanIni, JSON.stringify({ url: newDoc.url })).run()
 
                 documentUrl = newDoc.url
             }
@@ -106,6 +118,7 @@ Tanggal Hari Ini: ${hariIni}
 
         if (aiResponse.intent === 'catat_transaksi' && aiResponse.metadata?.nominal) {
             const txPayload = {
+                user_id: userId,
                 tanggal: hariIni,
                 deskripsi: aiResponse.metadata.deskripsi || message,
                 jumlah: Number(aiResponse.metadata.nominal),
@@ -114,20 +127,25 @@ Tanggal Hari Ini: ${hariIni}
             }
 
             transactionData = await createTransaksi(db, txPayload)
-            spreadsheetUrl = `/api/spreadsheet?bulan=${bulanIni}`
+            spreadsheetUrl = `/api/spreadsheet?bulan=${bulanIni}&userId=${encodeURIComponent(userId)}`
         }
 
         if (aiResponse.intent === 'tanya_saldo' || aiResponse.intent === 'minta_laporan') {
-            spreadsheetUrl = `/api/spreadsheet?bulan=${bulanIni}`
+            spreadsheetUrl = `/api/spreadsheet?bulan=${bulanIni}&userId=${encodeURIComponent(userId)}`
         }
 
         await db.prepare(
-            `INSERT INTO percakapan (user_message, ai_reply, intent, metadata) VALUES (?, ?, ?, ?)`
+            `INSERT INTO percakapan (user_id, user_message, ai_reply, intent, metadata) VALUES (?, ?, ?, ?, ?)`
         ).bind(
+            userId,
             message,
             aiResponse.reply_text,
             aiResponse.intent,
-            JSON.stringify(aiResponse.metadata || {})
+            JSON.stringify({
+                spreadsheet_url: spreadsheetUrl,
+                document_url: documentUrl,
+                ...aiResponse.metadata
+            })
         ).run()
 
         return c.json({
@@ -142,6 +160,24 @@ Tanggal Hari Ini: ${hariIni}
 
     } catch (error: any) {
         console.error('[Black Shore] Chat Error:', error)
+        return c.json({ error: error.message }, 500)
+    }
+})
+
+chatRoutes.get('/history', async (c) => {
+    const userId = c.req.query('userId')
+    if (!userId || userId === 'guest') {
+        return c.json({ success: true, data: [] })
+    }
+
+    try {
+        const { results } = await c.env.black_shore_db.prepare(
+            `SELECT * FROM percakapan WHERE user_id = ? ORDER BY created_at ASC LIMIT 50`
+        ).bind(userId).all()
+
+        return c.json({ success: true, data: results })
+    } catch (error: any) {
+        console.error('[Black Shore] Chat History Error:', error)
         return c.json({ error: error.message }, 500)
     }
 })
