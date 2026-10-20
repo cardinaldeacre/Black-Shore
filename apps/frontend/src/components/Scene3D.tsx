@@ -5,13 +5,99 @@ import {Canvas, useFrame} from '@react-three/fiber';
 import {OrbitControls, Html, ContactShadows, RoundedBox} from '@react-three/drei';
 import * as THREE from 'three';
 
+export type AgentId = 'lilly' | 'momo';
+
 interface Scene3DProps {
-	onSelectAgent: () => void;
-	isWorking: boolean;
+	onSelectAgent: (agentId: AgentId) => void;
+	workingStates: Record<AgentId, boolean>;
 }
 
-// 1. KARAKTER VOXEL 3D DENGAN WAYPOINT ZIGZAG
-function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => void}) {
+interface AgentConfig {
+	id: AgentId;
+	name: string;
+	role: string;
+	gender: 'female' | 'male';
+	hairColor: string;
+	jacketColor: string;
+	shirtColor: string;
+	tieColor: string;
+	pantsColor: string;
+	mugColor: string;
+	borderHoverClass: string;
+	dotWorkingClass: string;
+	roleBadgeClass: string;
+	glasses: boolean;
+	speed: number;
+	waypoints: THREE.Vector3[];
+}
+
+// =========================================================
+// KONFIGURASI LILLY & MOMO DENGAN JALUR ANTI-TABRAKAN
+// =========================================================
+const AGENTS_CONFIG: AgentConfig[] = [
+	{
+		id: 'lilly',
+		name: 'Lilly',
+		role: "Maul's Assistant",
+		gender: 'female',
+		hairColor: '#1e1b4b', // Indigo-hitam elegan
+		jacketColor: '#0f172a', // Slate gelap keren
+		shirtColor: '#f8fafc',
+		tieColor: '#06b6d4', // Aksen Cyan
+		pantsColor: '#1e293b',
+		mugColor: '#cffafe',
+		borderHoverClass: 'border-cyan-400',
+		dotWorkingClass: 'bg-cyan-400',
+		roleBadgeClass: 'text-cyan-300',
+		glasses: true,
+		speed: 2.55,
+		// Jalur Luar (Dari dudukan kanan sofa -> memutar ke kursi kerja kiri)
+		waypoints: [
+			new THREE.Vector3(1.92, 0.44, 1.08), // [0] Duduk di Sofa Kanan
+			new THREE.Vector3(1.92, 0.56, 1.68), // [1] Berdiri di celah depan Sofa Kanan
+			new THREE.Vector3(0.45, 0.56, 1.68), // [2] Geser keluar melewati meja kopi
+			new THREE.Vector3(-0.45, 0.56, 0.85), // [3] Diagonal jalur luar (bawah/depan)
+			new THREE.Vector3(-1.75, 0.56, 0.25), // [4] Siap di belakang Kursi Kerja Kiri
+			new THREE.Vector3(-1.75, 0.48, -0.48), // [5] Masuk & Duduk di Kursi Kerja Kiri
+		],
+	},
+	{
+		id: 'momo',
+		name: 'Momo',
+		role: "Umii's Assistant",
+		gender: 'male',
+		hairColor: '#451a03', // Coklat hangat
+		jacketColor: '#31102f', // Plum/Maroon gelap manis
+		shirtColor: '#fff1f2',
+		tieColor: '#f43f5e', // Aksen Rose/Pink manis
+		pantsColor: '#27272a',
+		mugColor: '#ffe4e6',
+		borderHoverClass: 'border-rose-400',
+		dotWorkingClass: 'bg-rose-400',
+		roleBadgeClass: 'text-rose-300',
+		glasses: false,
+		speed: 2.4,
+		// Jalur Dalam (Dari dudukan kiri sofa -> jalur tengah -> kursi kerja kanan)
+		waypoints: [
+			new THREE.Vector3(1.18, 0.44, 1.08), // [0] Duduk di Sofa Kiri
+			new THREE.Vector3(1.18, 0.56, 1.52), // [1] Berdiri di depan Sofa Kiri
+			new THREE.Vector3(0.35, 0.56, 1.15), // [2] Keluar lewat samping kiri sofa
+			new THREE.Vector3(-0.15, 0.56, 0.25), // [3] Diagonal jalur dalam (tengah ruangan)
+			new THREE.Vector3(-0.65, 0.56, 0.15), // [4] Siap di belakang Kursi Kerja Kanan
+			new THREE.Vector3(-0.65, 0.48, -0.48), // [5] Masuk & Duduk di Kursi Kerja Kanan
+		],
+	},
+];
+
+function VoxelAgent({
+	config,
+	isWorking,
+	onClick,
+}: {
+	config: AgentConfig;
+	isWorking: boolean;
+	onClick: () => void;
+}) {
 	const rootRef = useRef<THREE.Group>(null);
 	const headRef = useRef<THREE.Group>(null);
 	const leftArmRef = useRef<THREE.Group>(null);
@@ -23,25 +109,27 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 	const [hovered, setHovered] = useState(false);
 	const [agentState, setAgentState] = useState<'resting' | 'walking' | 'working'>('resting');
 
-	// Rute Zigzag (Waypoints)
-	const waypoints = useMemo(
-		() => [
-			new THREE.Vector3(1.55, 0.44, 1.08), // [0] Titik Duduk Sofa
-			new THREE.Vector3(1.55, 0.56, 1.72), // [1] Berdiri di celah depan Sofa (sebelum meja kopi)
-			new THREE.Vector3(0.35, 0.56, 1.72), // [2] Geser ke kiri melewati lengan Sofa & Karpet
-			new THREE.Vector3(0.15, 0.56, 0.35), // [3] Zigzag ke tengah ruangan
-			new THREE.Vector3(-0.65, 0.56, -0.48), // [4] Berdiri di samping kanan Kursi Kerja
-			new THREE.Vector3(-1.4, 0.48, -0.48), // [5] Masuk & Duduk di Kursi Kerja
-		],
-		[]
-	);
-
+	const waypoints = useMemo(() => config.waypoints, [config.waypoints]);
 	const waypointIdxRef = useRef<number>(0);
 	const prevWorkingRef = useRef<boolean>(isWorking);
+	const isInitializedRef = useRef<boolean>(false);
+
+	// Offset waktu animasi agar gerakan Lilly & Momo tidak kaku serempak
+	const animOffset = useMemo(() => (config.id === 'momo' ? 2.5 : 0), [config.id]);
 
 	useFrame((state, delta) => {
 		if (!rootRef.current) return;
-		const t = state.clock.getElapsedTime();
+
+		// Set posisi awal sekali saja saat pertama kali mount
+		// (Mencegah posisi ke-reset saat state hovered berubah!)
+		if (!isInitializedRef.current) {
+			const initialWaypoint = waypoints[0];
+			if (!initialWaypoint) return;
+			rootRef.current.position.copy(initialWaypoint);
+			isInitializedRef.current = true;
+		}
+
+		const t = state.clock.getElapsedTime() + animOffset;
 		const finalIdx = isWorking ? waypoints.length - 1 : 0;
 
 		if (prevWorkingRef.current !== isWorking) {
@@ -77,8 +165,7 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 
 			if (agentState !== 'walking') setAgentState('walking');
 
-			const speed = 2.6;
-			const step = Math.min(distXZ, delta * speed);
+			const step = Math.min(distXZ, delta * config.speed);
 			rootRef.current.position.x += (dx / distXZ) * step;
 			rootRef.current.position.z += (dz / distXZ) * step;
 
@@ -188,12 +275,13 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 	return (
 		<group
 			ref={rootRef}
-			position={[1.55, 0.44, 1.08]}
+			frustumCulled={false}
 			onClick={(e) => {
 				e.stopPropagation();
 				onClick();
 			}}
-			onPointerOver={() => {
+			onPointerOver={(e) => {
+				e.stopPropagation();
 				setHovered(true);
 				document.body.style.cursor = 'pointer';
 			}}
@@ -201,28 +289,53 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 				setHovered(false);
 				document.body.style.cursor = 'auto';
 			}}>
-			{/* FLOATING NAME TAG */}
-			<Html position={[0, 1.25, 0]} center distanceFactor={10} zIndexRange={[10, 0]}>
-				<div
-					onClick={onClick}
-					className={`flex items-center gap-2 px-3 py-1 rounded-md border shadow-xl cursor-pointer transition-all select-none whitespace-nowrap ${
-						hovered
-							? 'bg-slate-900 border-cyan-400 scale-110'
-							: 'bg-slate-950/90 border-slate-700/80'
-					}`}>
-					<span className="text-xs font-bold tracking-wide text-white">Black Shore</span>
-					<span
-						className={`w-2.5 h-2.5 rounded-full ${
-							agentState === 'working'
-								? 'bg-cyan-400 animate-ping'
-								: agentState === 'walking'
-									? 'bg-amber-400'
-									: 'bg-emerald-400'
-						}`}
-					/>
-				</div>
-			</Html>
-
+			<group position={[0, 1.28, 0]}>
+				<Html
+					key={`label-${config.id}`}
+					center
+					distanceFactor={10}
+					occlude={false}
+					style={{
+						pointerEvents: 'auto',
+						userSelect: 'none',
+						zIndex: config.id === 'lilly' ? 100 : 101,
+					}}>
+					<div
+						onClick={(e) => {
+							e.stopPropagation();
+							onClick();
+						}}
+						onMouseEnter={() => {
+							setHovered(true);
+							document.body.style.cursor = 'pointer';
+						}}
+						onMouseLeave={() => {
+							setHovered(false);
+							document.body.style.cursor = 'auto';
+						}}
+						className={`flex flex-col items-center px-3 py-1 rounded-md border shadow-xl cursor-pointer transition-transform duration-150 whitespace-nowrap ${
+							hovered
+								? `bg-slate-900 ${config.borderHoverClass} scale-110`
+								: 'bg-slate-950/90 border-slate-700/80'
+						}`}>
+						<div className="flex items-center gap-1.5">
+							<span className="text-[9px] font-bold tracking-wide text-white">{config.name}</span>
+							<span
+								className={`w-2 h-2 rounded-full ${
+									agentState === 'working'
+										? `${config.dotWorkingClass} animate-ping`
+										: agentState === 'walking'
+											? 'bg-amber-400'
+											: 'bg-emerald-400'
+								}`}
+							/>
+						</div>
+						<span className={`text-[6px] font-mono leading-tight ${config.roleBadgeClass}`}>
+							{config.role}
+						</span>
+					</div>
+				</Html>
+			</group>
 			{/* === KEPALA & DETAIL WAJAH TIMBUL 3D === */}
 			<group ref={headRef} position={[0, 0.52, 0]}>
 				<mesh castShadow>
@@ -230,27 +343,50 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 					<meshStandardMaterial color="#f5cba7" roughness={0.6} />
 				</mesh>
 
-				{/* Rambut 3D Timbul */}
+				{/* Rambut Atas & Poni */}
 				<mesh position={[0, 0.22, 0]} castShadow>
 					<boxGeometry args={[0.46, 0.1, 0.46]} />
-					<meshStandardMaterial color="#2c1810" />
+					<meshStandardMaterial color={config.hairColor} />
 				</mesh>
 				<mesh position={[0, 0.14, 0.21]} castShadow>
 					<boxGeometry args={[0.44, 0.1, 0.08]} />
-					<meshStandardMaterial color="#2c1810" />
+					<meshStandardMaterial color={config.hairColor} />
 				</mesh>
-				<mesh position={[0, 0.04, -0.21]} castShadow>
-					<boxGeometry args={[0.46, 0.32, 0.06]} />
-					<meshStandardMaterial color="#2c1810" />
-				</mesh>
-				<mesh position={[-0.22, 0.08, 0]} castShadow>
-					<boxGeometry args={[0.05, 0.24, 0.44]} />
-					<meshStandardMaterial color="#2c1810" />
-				</mesh>
-				<mesh position={[0.22, 0.08, 0]} castShadow>
-					<boxGeometry args={[0.05, 0.24, 0.44]} />
-					<meshStandardMaterial color="#2c1810" />
-				</mesh>
+
+				{/* Rambut Belakang & Samping (Dibedakan antara Perempuan/Lilly & Pria/Momo) */}
+				{config.gender === 'female' ? (
+					<>
+						{/* Rambut Panjang Terurai Lilly */}
+						<mesh position={[0, -0.06, -0.22]} castShadow>
+							<boxGeometry args={[0.46, 0.54, 0.08]} />
+							<meshStandardMaterial color={config.hairColor} />
+						</mesh>
+						<mesh position={[-0.22, -0.02, -0.02]} castShadow>
+							<boxGeometry args={[0.06, 0.44, 0.42]} />
+							<meshStandardMaterial color={config.hairColor} />
+						</mesh>
+						<mesh position={[0.22, -0.02, -0.02]} castShadow>
+							<boxGeometry args={[0.06, 0.44, 0.42]} />
+							<meshStandardMaterial color={config.hairColor} />
+						</mesh>
+					</>
+				) : (
+					<>
+						{/* Potongan Rambut Pendek Rapi Momo */}
+						<mesh position={[0, 0.04, -0.21]} castShadow>
+							<boxGeometry args={[0.46, 0.32, 0.06]} />
+							<meshStandardMaterial color={config.hairColor} />
+						</mesh>
+						<mesh position={[-0.22, 0.08, 0]} castShadow>
+							<boxGeometry args={[0.05, 0.24, 0.44]} />
+							<meshStandardMaterial color={config.hairColor} />
+						</mesh>
+						<mesh position={[0.22, 0.08, 0]} castShadow>
+							<boxGeometry args={[0.05, 0.24, 0.44]} />
+							<meshStandardMaterial color={config.hairColor} />
+						</mesh>
+					</>
+				)}
 
 				{/* Telinga 3D Timbul */}
 				<mesh position={[-0.23, -0.02, 0]}>
@@ -265,11 +401,11 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 				{/* Alis 3D Timbul */}
 				<mesh position={[-0.09, 0.06, 0.22]}>
 					<boxGeometry args={[0.1, 0.03, 0.03]} />
-					<meshStandardMaterial color="#1f110b" />
+					<meshStandardMaterial color={config.hairColor} />
 				</mesh>
 				<mesh position={[0.09, 0.06, 0.22]}>
 					<boxGeometry args={[0.1, 0.03, 0.03]} />
-					<meshStandardMaterial color="#1f110b" />
+					<meshStandardMaterial color={config.hairColor} />
 				</mesh>
 
 				{/* Mata 3D */}
@@ -290,12 +426,6 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 					<meshStandardMaterial color="#0f172a" />
 				</mesh>
 
-				{/* Frame Kacamata 3D Timbul */}
-				<mesh position={[0, 0.01, 0.235]}>
-					<boxGeometry args={[0.34, 0.02, 0.02]} />
-					<meshStandardMaterial color="#020617" />
-				</mesh>
-
 				{/* Hidung & Mulut 3D Timbul */}
 				<mesh position={[0, -0.05, 0.23]}>
 					<boxGeometry args={[0.06, 0.06, 0.05]} />
@@ -303,7 +433,7 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 				</mesh>
 				<mesh position={[0, -0.13, 0.22]}>
 					<boxGeometry args={[0.1, 0.03, 0.02]} />
-					<meshStandardMaterial color="#9a3412" />
+					<meshStandardMaterial color={config.gender === 'female' ? '#e11d48' : '#9a3412'} />
 				</mesh>
 			</group>
 
@@ -311,23 +441,23 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 			<group position={[0, 0.08, 0]}>
 				<mesh castShadow>
 					<boxGeometry args={[0.38, 0.46, 0.22]} />
-					<meshStandardMaterial color="#f8fafc" />
+					<meshStandardMaterial color={config.shirtColor} />
 				</mesh>
 				<mesh position={[0, 0.04, 0.12]}>
 					<boxGeometry args={[0.06, 0.26, 0.02]} />
-					<meshStandardMaterial color="#06b6d4" />
+					<meshStandardMaterial color={config.tieColor} />
 				</mesh>
 				<mesh position={[-0.13, 0, 0.01]} castShadow>
 					<boxGeometry args={[0.14, 0.47, 0.26]} />
-					<meshStandardMaterial color="#1e293b" />
+					<meshStandardMaterial color={config.jacketColor} />
 				</mesh>
 				<mesh position={[0.13, 0, 0.01]} castShadow>
 					<boxGeometry args={[0.14, 0.47, 0.26]} />
-					<meshStandardMaterial color="#1e293b" />
+					<meshStandardMaterial color={config.jacketColor} />
 				</mesh>
 				<mesh position={[0, 0, -0.02]} castShadow>
 					<boxGeometry args={[0.4, 0.47, 0.2]} />
-					<meshStandardMaterial color="#1e293b" />
+					<meshStandardMaterial color={config.jacketColor} />
 				</mesh>
 			</group>
 
@@ -335,7 +465,7 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 			<group ref={leftArmRef} position={[-0.27, 0.26, 0]}>
 				<mesh position={[0, -0.12, 0]} castShadow>
 					<boxGeometry args={[0.14, 0.28, 0.16]} />
-					<meshStandardMaterial color="#1e293b" />
+					<meshStandardMaterial color={config.jacketColor} />
 				</mesh>
 				<mesh position={[0, -0.3, 0]} castShadow>
 					<boxGeometry args={[0.11, 0.12, 0.12]} />
@@ -347,19 +477,19 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 			<group ref={rightArmRef} position={[0.27, 0.26, 0]}>
 				<mesh position={[0, -0.12, 0]} castShadow>
 					<boxGeometry args={[0.14, 0.28, 0.16]} />
-					<meshStandardMaterial color="#1e293b" />
+					<meshStandardMaterial color={config.jacketColor} />
 				</mesh>
 				<mesh position={[0, -0.3, 0]} castShadow>
 					<boxGeometry args={[0.11, 0.12, 0.12]} />
 					<meshStandardMaterial color="#f5cba7" />
 				</mesh>
 
-				{/* Cangkir Kopi di Tangan (Muncul saat Rehat) */}
+				{/* Cangkir Kopi di Tangan (Muncul saat Rehat di Sofa) */}
 				{agentState === 'resting' && (
 					<group position={[0, -0.32, 0.14]} rotation={[Math.PI / 3, 0, 0]}>
 						<mesh castShadow>
 							<cylinderGeometry args={[0.055, 0.045, 0.11, 12]} />
-							<meshStandardMaterial color="#ffffff" />
+							<meshStandardMaterial color={config.mugColor} />
 						</mesh>
 						<mesh position={[0, 0.05, 0]}>
 							<cylinderGeometry args={[0.048, 0.048, 0.02, 12]} />
@@ -377,7 +507,7 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 			<group ref={leftLegRef} position={[-0.1, -0.15, 0]}>
 				<mesh position={[0, -0.15, 0]} castShadow>
 					<boxGeometry args={[0.16, 0.3, 0.18]} />
-					<meshStandardMaterial color="#334155" />
+					<meshStandardMaterial color={config.pantsColor} />
 				</mesh>
 				<mesh position={[0, -0.31, 0.03]} castShadow>
 					<boxGeometry args={[0.17, 0.09, 0.24]} />
@@ -389,7 +519,7 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 			<group ref={rightLegRef} position={[0.1, -0.15, 0]}>
 				<mesh position={[0, -0.15, 0]} castShadow>
 					<boxGeometry args={[0.16, 0.3, 0.18]} />
-					<meshStandardMaterial color="#334155" />
+					<meshStandardMaterial color={config.pantsColor} />
 				</mesh>
 				<mesh position={[0, -0.31, 0.03]} castShadow>
 					<boxGeometry args={[0.17, 0.09, 0.24]} />
@@ -400,10 +530,10 @@ function VoxelAgent({isWorking, onClick}: {isWorking: boolean; onClick: () => vo
 	);
 }
 
-// ==========================================
-// 2. RUANGAN MINIATUR KANTOR (DIORAMA DETAIL)
-// ==========================================
-function MiniatureOffice({isWorking}: {isWorking: boolean}) {
+// =========================================================
+// 2. RUANGAN MINIATUR KANTOR (DIORAMA DUAL-AGENT)
+// =========================================================
+function MiniatureOffice({workingStates}: {workingStates: Record<AgentId, boolean>}) {
 	return (
 		<group>
 			{/* LANTAI DIORAMA TEBAL */}
@@ -469,201 +599,238 @@ function MiniatureOffice({isWorking}: {isWorking: boolean}) {
 				</mesh>
 			</group>
 
-			{/* === AREA WORKDESK (MEJA, MONITOR, PC TOWER, KEYBOARD) === */}
-			<group position={[-1.4, 0, -1.35]}>
+			{/* === AREA WORKDESK DUAL WORKSTATION (UNTUK LILLY & MOMO) === */}
+			<group position={[-1.2, 0, -1.35]}>
+				{/* Daun Meja Panjang 2.6m */}
 				<RoundedBox
-					args={[2.2, 0.09, 1.05]}
+					args={[2.6, 0.09, 1.05]}
 					position={[0, 0.74, 0]}
 					radius={0.02}
 					castShadow
 					receiveShadow>
 					<meshStandardMaterial color="#b4835b" roughness={0.55} />
 				</RoundedBox>
-				<mesh position={[0.75, 0.36, 0]} castShadow receiveShadow>
-					<boxGeometry args={[0.55, 0.7, 0.95]} />
+
+				{/* Laci Kabinet Kanan */}
+				<mesh position={[0.98, 0.36, 0]} castShadow receiveShadow>
+					<boxGeometry args={[0.5, 0.7, 0.95]} />
 					<meshStandardMaterial color="#9a6b44" />
 				</mesh>
-				<mesh position={[-0.95, 0.36, -0.42]} castShadow>
+
+				{/* Kaki Meja Besi Kiri */}
+				<mesh position={[-1.18, 0.36, -0.42]} castShadow>
 					<boxGeometry args={[0.08, 0.7, 0.08]} />
 					<meshStandardMaterial color="#1e293b" />
 				</mesh>
-				<mesh position={[-0.95, 0.36, 0.42]} castShadow>
+				<mesh position={[-1.18, 0.36, 0.42]} castShadow>
 					<boxGeometry args={[0.08, 0.7, 0.08]} />
 					<meshStandardMaterial color="#1e293b" />
 				</mesh>
 
-				{/* MONITOR ULTRAWIDE + STAND */}
-				<group position={[-0.15, 0.79, -0.22]}>
+				{/* --- WORKSTATION 1 (KIRI - LILLY / CYAN) --- */}
+				<group position={[-0.55, 0.79, -0.22]}>
 					<mesh position={[0, 0.01, 0]}>
-						<boxGeometry args={[0.32, 0.03, 0.22]} />
+						<boxGeometry args={[0.28, 0.03, 0.2]} />
 						<meshStandardMaterial color="#1e293b" />
 					</mesh>
 					<mesh position={[0, 0.16, -0.05]}>
-						<boxGeometry args={[0.07, 0.3, 0.05]} />
+						<boxGeometry args={[0.06, 0.3, 0.05]} />
 						<meshStandardMaterial color="#334155" />
 					</mesh>
 					<mesh position={[0, 0.34, 0]} castShadow>
-						<boxGeometry args={[0.88, 0.48, 0.05]} />
+						<boxGeometry args={[0.78, 0.44, 0.05]} />
 						<meshStandardMaterial color="#0f172a" />
 					</mesh>
+					{/* Layar Monitor Lilly menyala terang hanya jika Lilly sedang bekerja */}
 					<mesh position={[0, 0.34, 0.028]}>
-						<planeGeometry args={[0.82, 0.42]} />
+						<planeGeometry args={[0.72, 0.38]} />
 						<meshStandardMaterial
-							color={isWorking ? '#06b6d4' : '#0ea5e9'}
-							emissive={isWorking ? '#22d3ee' : '#0284c7'}
-							emissiveIntensity={isWorking ? 0.9 : 0.35}
+							color={workingStates.lilly ? '#06b6d4' : '#0f172a'}
+							emissive={workingStates.lilly ? '#22d3ee' : '#0284c7'}
+							emissiveIntensity={workingStates.lilly ? 0.95 : 0.2}
 						/>
 					</mesh>
 				</group>
-
-				{/* PC TOWER GAMING DI ATAS MEJA */}
-				<group position={[0.72, 1.08, -0.15]}>
-					<mesh castShadow>
-						<boxGeometry args={[0.28, 0.56, 0.52]} />
-						<meshStandardMaterial color="#0f172a" roughness={0.3} />
-					</mesh>
-					<mesh position={[-0.145, 0, 0]}>
-						<planeGeometry args={[0.44, 0.46]} />
-						<meshStandardMaterial color="#020617" />
-					</mesh>
-					<mesh position={[-0.142, 0.06, 0]}>
-						<boxGeometry args={[0.02, 0.12, 0.32]} />
-						<meshStandardMaterial color="#22d3ee" emissive="#06b6d4" emissiveIntensity={1.2} />
-					</mesh>
-					<mesh position={[-0.142, -0.1, 0]}>
-						<boxGeometry args={[0.02, 0.06, 0.28]} />
-						<meshStandardMaterial color="#a855f7" emissive="#9333ea" emissiveIntensity={1.2} />
-					</mesh>
-					<mesh position={[0, 0.25, 0.265]}>
-						<boxGeometry args={[0.06, 0.02, 0.02]} />
-						<meshStandardMaterial color="#22d3ee" emissive="#22d3ee" emissiveIntensity={1} />
-					</mesh>
-				</group>
-
-				{/* Keyboard, Mousepad & Mouse */}
-				<mesh position={[-0.1, 0.79, 0.18]}>
-					<boxGeometry args={[0.75, 0.01, 0.32]} />
+				{/* Keyboard & Mouse Lilly */}
+				<mesh position={[-0.55, 0.79, 0.18]}>
+					<boxGeometry args={[0.68, 0.01, 0.3]} />
 					<meshStandardMaterial color="#1e293b" />
 				</mesh>
-				<mesh position={[-0.15, 0.805, 0.18]} castShadow>
-					<boxGeometry args={[0.38, 0.025, 0.14]} />
+				<mesh position={[-0.6, 0.805, 0.18]} castShadow>
+					<boxGeometry args={[0.34, 0.025, 0.13]} />
 					<meshStandardMaterial color="#e2e8f0" />
 				</mesh>
-				<mesh position={[0.16, 0.805, 0.18]} castShadow>
-					<boxGeometry args={[0.07, 0.025, 0.11]} />
+				<mesh position={[-0.32, 0.805, 0.18]} castShadow>
+					<boxGeometry args={[0.06, 0.025, 0.1]} />
 					<meshStandardMaterial color="#f8fafc" />
 				</mesh>
+
+				{/* --- WORKSTATION 2 (KANAN - MOMO / ROSE) --- */}
+				<group position={[0.55, 0.79, -0.22]}>
+					<mesh position={[0, 0.01, 0]}>
+						<boxGeometry args={[0.28, 0.03, 0.2]} />
+						<meshStandardMaterial color="#1e293b" />
+					</mesh>
+					<mesh position={[0, 0.16, -0.05]}>
+						<boxGeometry args={[0.06, 0.3, 0.05]} />
+						<meshStandardMaterial color="#334155" />
+					</mesh>
+					<mesh position={[0, 0.34, 0]} castShadow>
+						<boxGeometry args={[0.78, 0.44, 0.05]} />
+						<meshStandardMaterial color="#0f172a" />
+					</mesh>
+					{/* Layar Monitor Momo menyala terang hanya jika Momo sedang bekerja */}
+					<mesh position={[0, 0.34, 0.028]}>
+						<planeGeometry args={[0.72, 0.38]} />
+						<meshStandardMaterial
+							color={workingStates.momo ? '#f43f5e' : '#0f172a'}
+							emissive={workingStates.momo ? '#fb7185' : '#be123c'}
+							emissiveIntensity={workingStates.momo ? 0.95 : 0.2}
+						/>
+					</mesh>
+				</group>
+				{/* Keyboard & Mouse Momo */}
+				<mesh position={[0.55, 0.79, 0.18]}>
+					<boxGeometry args={[0.68, 0.01, 0.3]} />
+					<meshStandardMaterial color="#1e293b" />
+				</mesh>
+				<mesh position={[0.5, 0.805, 0.18]} castShadow>
+					<boxGeometry args={[0.34, 0.025, 0.13]} />
+					<meshStandardMaterial color="#e2e8f0" />
+				</mesh>
+				<mesh position={[0.78, 0.805, 0.18]} castShadow>
+					<boxGeometry args={[0.06, 0.025, 0.1]} />
+					<meshStandardMaterial color="#f8fafc" />
+				</mesh>
+
+				{/* PC TOWER GAMING DI TENGAH MEJA */}
+				<group position={[0, 1.05, -0.22]}>
+					<mesh castShadow>
+						<boxGeometry args={[0.24, 0.52, 0.46]} />
+						<meshStandardMaterial color="#0f172a" roughness={0.3} />
+					</mesh>
+					<mesh position={[0, 0.05, 0.232]}>
+						<boxGeometry args={[0.14, 0.08, 0.01]} />
+						<meshStandardMaterial color="#22d3ee" emissive="#06b6d4" emissiveIntensity={1.2} />
+					</mesh>
+					<mesh position={[0, -0.1, 0.232]}>
+						<boxGeometry args={[0.14, 0.08, 0.01]} />
+						<meshStandardMaterial color="#fb7185" emissive="#f43f5e" emissiveIntensity={1.2} />
+					</mesh>
+				</group>
 			</group>
 
-			{/* === KURSI KERJA KANTOR === */}
-			<group position={[-1.4, 0, -0.45]}>
-				<mesh position={[0, 0.22, 0]} castShadow>
-					<cylinderGeometry args={[0.04, 0.04, 0.42, 10]} />
-					<meshStandardMaterial color="#334155" />
-				</mesh>
-				<mesh position={[0, 0.04, 0]} castShadow>
-					<boxGeometry args={[0.55, 0.05, 0.1]} />
-					<meshStandardMaterial color="#1e293b" />
-				</mesh>
-				<mesh position={[0, 0.04, 0]} castShadow>
-					<boxGeometry args={[0.1, 0.05, 0.55]} />
-					<meshStandardMaterial color="#1e293b" />
-				</mesh>
-				<RoundedBox args={[0.58, 0.09, 0.56]} position={[0, 0.44, 0]} radius={0.03} castShadow>
-					<meshStandardMaterial color="#64748b" />
-				</RoundedBox>
-				<RoundedBox args={[0.54, 0.62, 0.09]} position={[0, 0.78, 0.25]} radius={0.03} castShadow>
-					<meshStandardMaterial color="#475569" />
-				</RoundedBox>
-				{/* Armrest Kiri */}
-				<mesh position={[-0.3, 0.58, 0.08]} castShadow>
-					<boxGeometry args={[0.06, 0.05, 0.32]} />
-					<meshStandardMaterial color="#1e293b" />
-				</mesh>
-				{/* Armrest Kanan (Dibuat agak mundur agar jalur masuk Agent dari kanan bebas hambatan) */}
-				<mesh position={[0.3, 0.58, 0.12]} castShadow>
-					<boxGeometry args={[0.06, 0.05, 0.24]} />
-					<meshStandardMaterial color="#1e293b" />
-				</mesh>
-			</group>
+			{/* === 2 KURSI KERJA KANTOR === */}
+			{[-1.75, -0.65].map((chairX, idx) => (
+				<group key={idx} position={[chairX, 0, -0.45]}>
+					<mesh position={[0, 0.22, 0]} castShadow>
+						<cylinderGeometry args={[0.04, 0.04, 0.42, 10]} />
+						<meshStandardMaterial color="#334155" />
+					</mesh>
+					<mesh position={[0, 0.04, 0]} castShadow>
+						<boxGeometry args={[0.5, 0.05, 0.1]} />
+						<meshStandardMaterial color="#1e293b" />
+					</mesh>
+					<mesh position={[0, 0.04, 0]} castShadow>
+						<boxGeometry args={[0.1, 0.05, 0.5]} />
+						<meshStandardMaterial color="#1e293b" />
+					</mesh>
+					<RoundedBox args={[0.52, 0.09, 0.52]} position={[0, 0.44, 0]} radius={0.03} castShadow>
+						<meshStandardMaterial color="#64748b" />
+					</RoundedBox>
+					<RoundedBox args={[0.48, 0.58, 0.08]} position={[0, 0.76, 0.23]} radius={0.03} castShadow>
+						<meshStandardMaterial color="#475569" />
+					</RoundedBox>
+					<mesh position={[-0.26, 0.56, 0.08]} castShadow>
+						<boxGeometry args={[0.05, 0.05, 0.26]} />
+						<meshStandardMaterial color="#1e293b" />
+					</mesh>
+					<mesh position={[0.26, 0.56, 0.08]} castShadow>
+						<boxGeometry args={[0.05, 0.05, 0.26]} />
+						<meshStandardMaterial color="#1e293b" />
+					</mesh>
+				</group>
+			))}
 
-			{/* === AREA REHAT: SOFA EMPUK, KARPET, LAMPU & MEJA KOPI === */}
+			{/* === AREA REHAT: SOFA 2-SEATER, KARPET, LAMPU & MEJA KOPI === */}
 			<group position={[1.55, 0, 1.05]}>
 				<mesh position={[0, 0.01, 0.55]} receiveShadow>
 					<boxGeometry args={[2.6, 0.02, 2.6]} />
 					<meshStandardMaterial color="#cbd5e1" roughness={0.9} />
 				</mesh>
 
+				{/* Base Sofa (2-Seater Lega) */}
 				<RoundedBox
-					args={[1.75, 0.24, 0.9]}
+					args={[1.85, 0.24, 0.9]}
 					position={[0, 0.14, 0]}
 					radius={0.04}
 					castShadow
 					receiveShadow>
 					<meshStandardMaterial color="#2563eb" roughness={0.65} />
 				</RoundedBox>
+				{/* Bantalan Duduk Kiri (Tempat Momo: x lokal -0.37 -> world 1.18) */}
 				<RoundedBox
-					args={[0.72, 0.16, 0.78]}
+					args={[0.74, 0.16, 0.78]}
 					position={[-0.37, 0.3, 0.04]}
 					radius={0.04}
 					castShadow>
 					<meshStandardMaterial color="#3b82f6" roughness={0.6} />
 				</RoundedBox>
-				<RoundedBox args={[0.72, 0.16, 0.78]} position={[0.37, 0.3, 0.04]} radius={0.04} castShadow>
+				{/* Bantalan Duduk Kanan (Tempat Lilly: x lokal +0.37 -> world 1.92) */}
+				<RoundedBox args={[0.74, 0.16, 0.78]} position={[0.37, 0.3, 0.04]} radius={0.04} castShadow>
 					<meshStandardMaterial color="#3b82f6" roughness={0.6} />
 				</RoundedBox>
-				<RoundedBox args={[1.75, 0.65, 0.24]} position={[0, 0.52, -0.35]} radius={0.05} castShadow>
+				{/* Sandaran Belakang & Lengan Sofa */}
+				<RoundedBox args={[1.85, 0.65, 0.24]} position={[0, 0.52, -0.35]} radius={0.05} castShadow>
 					<meshStandardMaterial color="#1d4ed8" roughness={0.65} />
 				</RoundedBox>
-				<RoundedBox args={[0.24, 0.48, 0.92]} position={[-0.82, 0.36, 0]} radius={0.05} castShadow>
+				<RoundedBox args={[0.24, 0.48, 0.92]} position={[-0.86, 0.36, 0]} radius={0.05} castShadow>
 					<meshStandardMaterial color="#1d4ed8" roughness={0.65} />
 				</RoundedBox>
-				<RoundedBox args={[0.24, 0.48, 0.92]} position={[0.82, 0.36, 0]} radius={0.05} castShadow>
+				<RoundedBox args={[0.24, 0.48, 0.92]} position={[0.86, 0.36, 0]} radius={0.05} castShadow>
 					<meshStandardMaterial color="#1d4ed8" roughness={0.65} />
-				</RoundedBox>
-				<RoundedBox
-					args={[0.32, 0.32, 0.14]}
-					position={[-0.52, 0.48, -0.14]}
-					rotation={[0, 0.2, 0.15]}
-					radius={0.04}
-					castShadow>
-					<meshStandardMaterial color="#f43f5e" />
 				</RoundedBox>
 
-				{/* Meja Kopi (Digeser sedikit ke z=1.22 agar celah jalan keluar sofa lega) */}
-				<group position={[0, 0, 1.22]}>
+				{/* Meja Kopi dengan 2 Tatakan Gelas */}
+				<group position={[0, 0, 1.28]}>
 					<RoundedBox
-						args={[1.05, 0.07, 0.52]}
+						args={[1.15, 0.07, 0.52]}
 						position={[0, 0.36, 0]}
 						radius={0.02}
 						castShadow
 						receiveShadow>
 						<meshStandardMaterial color="#78350f" />
 					</RoundedBox>
-					<mesh position={[-0.42, 0.18, -0.18]} castShadow>
+					<mesh position={[-0.46, 0.18, -0.18]} castShadow>
 						<boxGeometry args={[0.06, 0.35, 0.06]} />
 						<meshStandardMaterial color="#1e293b" />
 					</mesh>
-					<mesh position={[0.42, 0.18, -0.18]} castShadow>
+					<mesh position={[0.46, 0.18, -0.18]} castShadow>
 						<boxGeometry args={[0.06, 0.35, 0.06]} />
 						<meshStandardMaterial color="#1e293b" />
 					</mesh>
-					<mesh position={[-0.42, 0.18, 0.18]} castShadow>
+					<mesh position={[-0.46, 0.18, 0.18]} castShadow>
 						<boxGeometry args={[0.06, 0.35, 0.06]} />
 						<meshStandardMaterial color="#1e293b" />
 					</mesh>
-					<mesh position={[0.42, 0.18, 0.18]} castShadow>
+					<mesh position={[0.46, 0.18, 0.18]} castShadow>
 						<boxGeometry args={[0.06, 0.35, 0.06]} />
 						<meshStandardMaterial color="#1e293b" />
 					</mesh>
-					<mesh position={[0.22, 0.405, -0.05]}>
-						<cylinderGeometry args={[0.09, 0.09, 0.02, 12]} />
-						<meshStandardMaterial color="#fbbf24" />
+					{/* Coaster Kiri (Momo - Rose) */}
+					<mesh position={[-0.28, 0.405, -0.05]}>
+						<cylinderGeometry args={[0.08, 0.08, 0.02, 12]} />
+						<meshStandardMaterial color="#f43f5e" />
+					</mesh>
+					{/* Coaster Kanan (Lilly - Cyan) */}
+					<mesh position={[0.28, 0.405, -0.05]}>
+						<cylinderGeometry args={[0.08, 0.08, 0.02, 12]} />
+						<meshStandardMaterial color="#06b6d4" />
 					</mesh>
 				</group>
 
 				{/* Lampu Berdiri */}
-				<group position={[1.25, 0, -0.1]}>
+				<group position={[1.28, 0, -0.1]}>
 					<mesh position={[0, 0.04, 0]}>
 						<cylinderGeometry args={[0.22, 0.24, 0.06, 16]} />
 						<meshStandardMaterial color="#334155" />
@@ -698,8 +865,10 @@ function MiniatureOffice({isWorking}: {isWorking: boolean}) {
 	);
 }
 
-// 3. CANVAS UTAMA DENGAN KAMERA MINIATUR LANGIT
-export default function Scene3D({onSelectAgent, isWorking}: Scene3DProps) {
+// =========================================================
+// 3. CANVAS UTAMA DENGAN LILLY & MOMO INDEPENDEN
+// =========================================================
+export default function Scene3D({onSelectAgent, workingStates}: Scene3DProps) {
 	return (
 		<div className="w-full h-full absolute inset-0 bg-[#0b1120]">
 			<Canvas camera={{position: [9.5, 9.5, 9.5], fov: 30}} gl={{antialias: true}} shadows>
@@ -712,10 +881,27 @@ export default function Scene3D({onSelectAgent, isWorking}: Scene3DProps) {
 					shadow-mapSize-height={2048}
 				/>
 				<pointLight position={[2.8, 2.2, 1.0]} color="#fbbf24" intensity={1.2} />
-				<pointLight position={[-1.4, 1.6, -1.3]} color="#22d3ee" intensity={1.0} />
+				<pointLight
+					position={[-1.7, 1.6, -1.3]}
+					color="#22d3ee"
+					intensity={workingStates.lilly ? 1.1 : 0.3}
+				/>
+				<pointLight
+					position={[-0.6, 1.6, -1.3]}
+					color="#fb7185"
+					intensity={workingStates.momo ? 1.1 : 0.3}
+				/>
 
-				<MiniatureOffice isWorking={isWorking} />
-				<VoxelAgent isWorking={isWorking} onClick={onSelectAgent} />
+				<MiniatureOffice workingStates={workingStates} />
+
+				{AGENTS_CONFIG.map((agent) => (
+					<VoxelAgent
+						key={agent.id}
+						config={agent}
+						isWorking={workingStates[agent.id]}
+						onClick={() => onSelectAgent(agent.id)}
+					/>
+				))}
 
 				<ContactShadows position={[0, 0.01, 0]} opacity={0.45} scale={10} blur={1.8} far={4} />
 
