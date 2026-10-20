@@ -1,6 +1,6 @@
 'use client';
 
-import {useRef, useState, useMemo} from 'react';
+import {useRef, useState, useMemo, useEffect} from 'react';
 import {Canvas, useFrame} from '@react-three/fiber';
 import {OrbitControls, Html, ContactShadows, RoundedBox} from '@react-three/drei';
 import * as THREE from 'three';
@@ -108,6 +108,13 @@ function VoxelAgent({
 
 	const [hovered, setHovered] = useState(false);
 	const [agentState, setAgentState] = useState<'resting' | 'walking' | 'working'>('resting');
+
+	const [isHtmlReady, setIsHtmlReady] = useState(false);
+
+	useEffect(() => {
+		const timer = setTimeout(() => setIsHtmlReady(true), 100);
+		return () => clearTimeout(timer);
+	}, []);
 
 	const waypoints = useMemo(() => config.waypoints, [config.waypoints]);
 	const waypointIdxRef = useRef<number>(0);
@@ -289,53 +296,56 @@ function VoxelAgent({
 				setHovered(false);
 				document.body.style.cursor = 'auto';
 			}}>
-			<group position={[0, 1.28, 0]}>
-				<Html
-					key={`label-${config.id}`}
-					center
-					distanceFactor={10}
-					occlude={false}
-					style={{
-						pointerEvents: 'auto',
-						userSelect: 'none',
-						zIndex: config.id === 'lilly' ? 100 : 101,
-					}}>
-					<div
-						onClick={(e) => {
-							e.stopPropagation();
-							onClick();
-						}}
-						onMouseEnter={() => {
-							setHovered(true);
-							document.body.style.cursor = 'pointer';
-						}}
-						onMouseLeave={() => {
-							setHovered(false);
-							document.body.style.cursor = 'auto';
-						}}
-						className={`flex flex-col items-center px-3 py-1 rounded-md border shadow-xl cursor-pointer transition-transform duration-150 whitespace-nowrap ${
-							hovered
-								? `bg-slate-900 ${config.borderHoverClass} scale-110`
-								: 'bg-slate-950/90 border-slate-700/80'
-						}`}>
-						<div className="flex items-center gap-1.5">
-							<span className="text-[9px] font-bold tracking-wide text-white">{config.name}</span>
-							<span
-								className={`w-2 h-2 rounded-full ${
-									agentState === 'working'
-										? `${config.dotWorkingClass} animate-ping`
-										: agentState === 'walking'
-											? 'bg-amber-400'
-											: 'bg-emerald-400'
-								}`}
-							/>
+			{/* FLOATING NAME TAG DI ATAS KEPALA MASING-MASING */}
+			{isHtmlReady && (
+				<group position={[0, 1.28, 0]}>
+					<Html
+						key={`label-${config.id}`}
+						center
+						distanceFactor={10}
+						occlude={false}
+						style={{
+							pointerEvents: 'auto',
+							userSelect: 'none',
+							zIndex: config.id === 'lilly' ? 100 : 101,
+						}}>
+						<div
+							onClick={(e) => {
+								e.stopPropagation();
+								onClick();
+							}}
+							onMouseEnter={() => {
+								setHovered(true);
+								document.body.style.cursor = 'pointer';
+							}}
+							onMouseLeave={() => {
+								setHovered(false);
+								document.body.style.cursor = 'auto';
+							}}
+							className={`flex flex-col items-center px-3 py-1 rounded-md border shadow-xl cursor-pointer transition-transform duration-150 whitespace-nowrap ${
+								hovered
+									? `bg-slate-900 ${config.borderHoverClass} scale-110`
+									: 'bg-slate-950/90 border-slate-700/80'
+							}`}>
+							<div className="flex items-center gap-1.5">
+								<span className="text-xs font-bold tracking-wide text-white">{config.name}</span>
+								<span
+									className={`w-2 h-2 rounded-full ${
+										agentState === 'working'
+											? `${config.dotWorkingClass} animate-ping`
+											: agentState === 'walking'
+												? 'bg-amber-400'
+												: 'bg-emerald-400'
+									}`}
+								/>
+							</div>
+							<span className={`text-[9px] font-mono leading-tight ${config.roleBadgeClass}`}>
+								{config.role}
+							</span>
 						</div>
-						<span className={`text-[6px] font-mono leading-tight ${config.roleBadgeClass}`}>
-							{config.role}
-						</span>
-					</div>
-				</Html>
-			</group>
+					</Html>
+				</group>
+			)}
 			{/* === KEPALA & DETAIL WAJAH TIMBUL 3D === */}
 			<group ref={headRef} position={[0, 0.52, 0]}>
 				<mesh castShadow>
@@ -353,20 +363,25 @@ function VoxelAgent({
 					<meshStandardMaterial color={config.hairColor} />
 				</mesh>
 
-				{/* Rambut Belakang & Samping (Dibedakan antara Perempuan/Lilly & Pria/Momo) */}
+				{/* Rambut Panjang Terurai & Blok Lipatan Belakang Lilly */}
 				{config.gender === 'female' ? (
 					<>
-						{/* Rambut Panjang Terurai Lilly */}
-						<mesh position={[0, -0.06, -0.22]} castShadow>
-							<boxGeometry args={[0.46, 0.54, 0.08]} />
+						<mesh position={[0, -0.12, -0.22]} castShadow>
+							<boxGeometry args={[0.44, 0.75, 0.1]} />
 							<meshStandardMaterial color={config.hairColor} />
 						</mesh>
-						<mesh position={[-0.22, -0.02, -0.02]} castShadow>
-							<boxGeometry args={[0.06, 0.44, 0.42]} />
+
+						<mesh position={[0, -0.42, -0.28]} castShadow>
+							<boxGeometry args={[0.36, 0.55, 0.08]} />
+							<meshStandardMaterial color={config.hairColor} roughness={0.5} />
+						</mesh>
+
+						<mesh position={[-0.22, -0.12, 0.02]} castShadow>
+							<boxGeometry args={[0.07, 0.62, 0.44]} />
 							<meshStandardMaterial color={config.hairColor} />
 						</mesh>
-						<mesh position={[0.22, -0.02, -0.02]} castShadow>
-							<boxGeometry args={[0.06, 0.44, 0.42]} />
+						<mesh position={[0.22, -0.12, 0.02]} castShadow>
+							<boxGeometry args={[0.07, 0.62, 0.44]} />
 							<meshStandardMaterial color={config.hairColor} />
 						</mesh>
 					</>
