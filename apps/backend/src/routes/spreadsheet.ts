@@ -5,37 +5,44 @@ import type { Bindings } from '../index';
 export const spreadsheetRoutes = new Hono<{ Bindings: Bindings }>();
 
 spreadsheetRoutes.get('/', async (c) => {
-    const bulan = c.req.query('bulan') ?? new Date().toISOString().slice(0, 7);
+  const bulan = c.req.query('bulan') ?? new Date().toISOString().slice(0, 7);
+  const userId = c.req.query('userId') ?? '';
 
-    const [transaksi, summary] = await Promise.all([
-        getTransaksiByBulan(c.env.black_shore_db, bulan),
-        getSummary(c.env.black_shore_db, bulan),
-    ]);
+  if (!userId || userId === 'guest') {
+    return c.html(`<h1>Akses Ditolak. Harus login dulu.</h1>`)
+  }
 
-    const formatRupiah = (n: number) =>
-        new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-        }).format(n);
+  const db = c.env.black_shore_db;
 
-    const formatTanggal = (iso: string) =>
-        new Date(iso).toLocaleDateString('id-ID', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-        });
+  const [transaksi, summary] = await Promise.all([
+    getTransaksiByBulan(db, bulan, userId),
+    getSummary(db, bulan, userId),
+  ]);
 
-    const [year, month] = bulan.split('-');
-    const bulanLabel = new Date(Number(year), Number(month) - 1).toLocaleDateString('id-ID', {
-        month: 'long',
-        year: 'numeric',
+  const formatRupiah = (n: number) =>
+    new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
+
+  const formatTanggal = (iso: string) =>
+    new Date(iso).toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
     });
 
-    const rows = transaksi
-        .map(
-            (t, i) => `
+  const [year, month] = bulan.split('-');
+  const bulanLabel = new Date(Number(year), Number(month) - 1).toLocaleDateString('id-ID', {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const rows = transaksi
+    .map(
+      (t, i) => `
       <tr>
         <td class="num">${i + 1}</td>
         <td>${formatTanggal(t.tanggal)}</td>
@@ -45,15 +52,15 @@ spreadsheetRoutes.get('/', async (c) => {
           ${t.tipe === 'masuk' ? '+' : '-'} ${formatRupiah(t.jumlah)}
         </td>
       </tr>`
-        )
-        .join('');
+    )
+    .join('');
 
-    const emptyRow = `
+  const emptyRow = `
     <tr>
       <td colspan="5" class="empty">Belum ada transaksi bulan ini</td>
     </tr>`;
 
-    const html = `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -190,14 +197,14 @@ spreadsheetRoutes.get('/', async (c) => {
 </body>
 </html>`;
 
-    return c.html(html);
+  return c.html(html);
 });
 
 function escapeHtml(str: string): string {
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }

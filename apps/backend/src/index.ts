@@ -63,7 +63,10 @@ app.route('/api/chat', chatRoutes)
 app.get('/api/transactions', async (c) => {
     const bulan = c.req.query('bulan')
     const limit = c.req.query('limit') ? Number(c.req.query('limit')) : undefined
-    const data = await listTransaksi(c.env.black_shore_db, { bulan, limit })
+    const data = await listTransaksi(c.env.black_shore_db, {
+        bulan, limit,
+        userId: ''
+    })
     return c.json({ data })
 })
 
@@ -76,7 +79,7 @@ app.post('/api/transactions', async (c) => {
 // Summary keuangan
 app.get('/api/summary', async (c) => {
     const bulan = c.req.query('bulan') ?? new Date().toISOString().slice(0, 7)
-    const data = await getSummary(c.env.black_shore_db, bulan)
+    const data = await getSummary(c.env.black_shore_db, bulan, c.req.query('userId') ?? 'guest')
     return c.json({ data })
 })
 

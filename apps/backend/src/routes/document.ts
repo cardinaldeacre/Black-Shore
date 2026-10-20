@@ -28,11 +28,10 @@ documentsRoutes.post('/', async (c) => {
     try {
         const accessToken = await getValidAccessToken(c.env, userId)
 
-        // Susun isi dokumen
         let finalContent = content
         if (!finalContent) {
-            const summary: any = await getSummary(c.env.black_shore_db, targetBulan)
-            const listTx: any[] = await listTransaksi(c.env.black_shore_db, { bulan: targetBulan })
+            const summary: any = await getSummary(c.env.black_shore_db, targetBulan, userId)
+            const listTx: any[] = await listTransaksi(c.env.black_shore_db, { userId, bulan: targetBulan })
 
             const barisTransaksi = listTx.length > 0
                 ? listTx.map((t, i) => `${i + 1}. [${t.tanggal}] ${t.deskripsi} (${t.tipe.toUpperCase()}) - Rp ${Number(t.jumlah).toLocaleString('id-ID')}`).join('\n')
@@ -52,11 +51,9 @@ documentsRoutes.post('/', async (c) => {
             ].join('\n')
         }
 
-        // Buat file di Google Docs & isi teksnya
         const newDoc = await createGoogleDoc(accessToken, docTitle)
         await updateGoogleDoc(accessToken, newDoc.documentId, finalContent)
 
-        // Simpan metadata ke tabel dokumen
         await c.env.black_shore_db.prepare(
             `INSERT INTO dokumen (title, google_doc_id, doc_type, related_period, metadata) VALUES (?, ?, ?, ?, ?)`
         ).bind(
