@@ -54,4 +54,19 @@ export const apiService = {
             method: 'POST',
         })
     },
+
+    async getChatHistory(userId: string) {
+        if (!userId || userId === 'guest') {
+            return []
+        }
+
+        const res = await fetch(`${BACKEND_URL}/api/chat/history?userId=${encodeURIComponent(userId)}`)
+        const data = await res.json()
+
+        if (!res.ok) {
+            throw new Error('Gagal mengambil riwayat percakapan')
+        }
+
+        return data.data
+    }
 }

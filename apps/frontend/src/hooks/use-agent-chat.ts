@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { apiService } from '@/lib/api'
 
 export interface ChatMessage {
@@ -28,6 +28,45 @@ export function useAgentChat(userId: string) {
     const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
+
+    useEffect(() => {
+        if (!userId || userId === 'guest') {
+            setMessages([INITIAL_MESSAGE])
+            return
+        }
+
+        async function fetchHistory() {
+            try {
+                const historyData = await apiService.getChatHistory(userId)
+
+                if (historyData && historyData.length > 0) {
+                    const loadedMessages: ChatMessage[] = [INITIAL_MESSAGE]
+
+                    historyData.forEach((row: any) => {
+                        loadedMessages.push({
+                            id: `user-${row.id}`,
+                            sender: 'user',
+                            text: row.user_message || '',
+                        })
+                        loadedMessages.push({
+                            id: `agent-${row.id}`,
+                            sender: 'agent',
+                            text: row.ai_reply || '',
+                            intent: row.intent,
+                            spreadsheetUrl: apiService.resolveBackendUrl(row.spreadsheet_url),
+                            documentUrl: row.document_url,
+                        })
+                    })
+
+                    setMessages(loadedMessages)
+                }
+            } catch (err) {
+                console.error("Gagal memuat riwayat:", err)
+            }
+        }
+
+        fetchHistory()
+    }, [userId])
 
     const sendMessage = useCallback(
         async (overrideText?: string) => {
