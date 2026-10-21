@@ -55,7 +55,7 @@ export default function LoginPage() {
 				fontFamily: 'sans-serif',
 			}}>
 			<h1 style={{fontSize: '24px', fontWeight: 'bold', marginBottom: '8px', color: '#22d3ee'}}>
-				Black Shore HQ
+				BLACK SHORE HEADQUARTERS
 			</h1>
 			<p style={{color: '#94a3b8', marginBottom: '32px'}}>
 				Area Terbatas. Silakan identifikasi diri Anda.
@@ -63,7 +63,7 @@ export default function LoginPage() {
 
 			<button
 				onClick={() => {
-					window.location.href = `${backendUrl}/auth/google`;
+					window.location.href = `${backendUrl}/auth/google/signin`;
 				}}
 				style={{
 					backgroundColor: '#f8fafc',
