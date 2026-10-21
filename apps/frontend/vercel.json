@@ -1,6 +1,6 @@
 {
-	"installCommand": "bun install",
-	"buildCommand": "bun run build",
+	"installCommand": "",
+	"buildCommand": "",
 	"cleanUrls": true,
 	"trailingSlash": false
 }
