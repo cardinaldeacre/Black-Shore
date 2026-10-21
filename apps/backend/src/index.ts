@@ -14,6 +14,7 @@ export type Bindings = {
     GOOGLE_CLIENT_ID: string
     GOOGLE_CLIENT_SECRET: string
     GEMINI_API_KEY: string
+    JWT_SECRET: string
     AI: any
 }
 

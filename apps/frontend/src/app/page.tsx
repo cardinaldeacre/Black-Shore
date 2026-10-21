@@ -1,11 +1,12 @@
 'use client';
 
-import {useState, useCallback} from 'react';
+import {useState, useCallback, useEffect} from 'react';
 import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
 import ChatRoom from '@/components/ChatRoom';
 import Scene3D, {AgentId} from '@/components/Scene3D';
 import {useAuthSession} from '@/hooks/use-auth-session';
+import {useRouter} from 'next/dist/client/components/navigation';
 
 export default function HomePage() {
 	const [isChatOpen, setIsChatOpen] = useState(false);
@@ -47,13 +48,37 @@ export default function HomePage() {
 		workingDemo.lilly ||
 		(isChatOpen &&
 			(activeChatAgent === 'lilly' ||
-				(activeChatAgent === null && userEmail !== 'umifirlana4@gmail.com')));
+				(activeChatAgent === null && userEmail === 'umifirlana4@gmail.com')));
 
 	const isMomoWorking =
 		workingDemo.momo ||
 		(isChatOpen &&
 			(activeChatAgent === 'momo' ||
-				(activeChatAgent === null && userEmail === 'umifirlana4@gmail.com')));
+				(activeChatAgent === null && userEmail === 'cardinaldeacre@gmail.com')));
+
+	const router = useRouter();
+	const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+	useEffect(() => {
+		const token = localStorage.getItem('black_shore_session');
+
+		if (!token) {
+			router.replace('/login');
+		} else {
+			setIsAuthenticated(true);
+		}
+
+		const params = new URLSearchParams(window.location.search);
+		const error = params.get('error');
+
+		if (error === 'unauthorized') {
+			alert('Akses Ditolak: Email Anda tidak terdaftar di sistem Black Shore.');
+		}
+	}, [router]);
+
+	if (!isAuthenticated) {
+		return <div style={{backgroundColor: '#020617', height: '100vh'}} />;
+	}
 
 	return (
 		<main className="relative min-h-screen bg-slate-950 text-white flex flex-col items-center justify-between overflow-hidden select-none">
