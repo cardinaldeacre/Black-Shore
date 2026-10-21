@@ -50,7 +50,9 @@ jobs:
           NEXT_PUBLIC_BACKEND_URL: https://black-shore-backend.cardinaldeacre.workers.dev
           
       - name: Deploy to Vercel
-        run: bunx vercel deploy apps/frontend/out --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          cp apps/frontend/vercel.json apps/frontend/out/
+          bunx vercel deploy apps/frontend/out --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
