@@ -1,12 +1,13 @@
-import type { NextConfig } from "next";
+import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-    reactStrictMode: true,
-    transpilePackages: ['@black-shore/shared'],
-    output: 'export',
-    images: {
-        unoptimized: true,
-    },
+	reactStrictMode: true,
+	transpilePackages: ['@black-shore/shared'],
+	output: 'export',
+	trailingSlash: true,
+	images: {
+		unoptimized: true,
+	},
 };
 
 export default nextConfig;
