@@ -52,7 +52,7 @@ authRoutes.get('/google/callback', async (c) => {
 
         const frontendUrl = c.env.ENVIRONMENT === 'development'
             ? 'http://localhost:3000'
-            : 'https://black-shore-frontend.vercel.app'
+            : 'https://black-shore.vercel.app'
 
         return c.redirect(
             `${frontendUrl}?connected=true&userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}`
