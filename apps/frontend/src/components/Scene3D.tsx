@@ -38,7 +38,7 @@ const AGENTS_CONFIG: AgentConfig[] = [
 	{
 		id: 'lilly',
 		name: 'Lilly',
-		role: "Maul's Assistant",
+		role: "Umii's Assistant",
 		gender: 'female',
 		hairColor: '#1e1b4b', // Indigo-hitam elegan
 		jacketColor: '#0f172a', // Slate gelap keren
@@ -64,7 +64,7 @@ const AGENTS_CONFIG: AgentConfig[] = [
 	{
 		id: 'momo',
 		name: 'Momo',
-		role: "Umii's Assistant",
+		role: "Maul's Assistant",
 		gender: 'male',
 		hairColor: '#451a03', // Coklat hangat
 		jacketColor: '#31102f', // Plum/Maroon gelap manis
