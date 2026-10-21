@@ -50,7 +50,10 @@ authRoutes.get('/google/callback', async (c) => {
             })
         )
 
-        const frontendUrl = c.env.ENVIRONMENT === 'development'
+        const url = new URL(c.req.url)
+        const isLocal = url.hostname.includes('localhost') || url.hostname.includes('127.0.0.1')
+
+        const frontendUrl = isLocal
             ? 'http://localhost:3000'
             : 'https://black-shore.vercel.app'
 
