@@ -8,6 +8,10 @@ const jetbrainsMono = JetBrains_Mono({subsets: ['latin'], variable: '--font-mono
 export const metadata: Metadata = {
 	title: 'Black Shore',
 	description: 'AI-powered digital office agent',
+	icons: {
+		icon: '/icon.png',
+		apple: '/icon.png',
+	},
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
