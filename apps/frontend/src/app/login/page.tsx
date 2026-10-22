@@ -10,21 +10,44 @@ export default function LoginPage() {
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
 		const urlToken = params.get('token');
+		const error = params.get('error');
+
+		if (error === 'unauthorized') {
+			alert('Akses Ditolak: Email Anda tidak terdaftar di sistem Black Shore.');
+			setIsProcessing(false);
+			return;
+		}
 
 		if (urlToken) {
 			localStorage.setItem('black_shore_session', urlToken);
-			router.replace('/');
-		} else {
-			const existingToken = localStorage.getItem('black_shore_session');
-			if (existingToken) {
-				router.replace('/');
+
+			let extractedEmail = '';
+			try {
+				const base64Payload = urlToken.split('.')[1];
+				if (base64Payload) {
+					const normalizedBase64 = base64Payload.replace(/-/g, '+').replace(/_/g, '/');
+					const decodedPayload = JSON.parse(atob(normalizedBase64));
+					if (decodedPayload.email) {
+						extractedEmail = decodedPayload.email;
+						localStorage.setItem('bs_user_id', extractedEmail);
+						localStorage.setItem('bs_user_email', extractedEmail);
+					}
+				}
+			} catch (e) {
+				console.error('Gagal membaca payload token:', e);
+			}
+
+			if (extractedEmail) {
+				window.location.replace(
+					`/?connected=true&userId=${encodeURIComponent(extractedEmail)}&email=${encodeURIComponent(extractedEmail)}`
+				);
 			} else {
-				setIsProcessing(false);
+				window.location.replace('/');
 			}
 		}
 	}, [router]);
 
-	const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+	const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
 
 	if (isProcessing) {
 		return (
@@ -36,6 +59,7 @@ export default function LoginPage() {
 					justifyContent: 'center',
 					alignItems: 'center',
 					color: '#22d3ee',
+					fontFamily: 'sans-serif',
 				}}>
 				Memproses kredensial keamanan...
 			</div>
@@ -55,7 +79,7 @@ export default function LoginPage() {
 				fontFamily: 'sans-serif',
 			}}>
 			<h1 style={{fontSize: '24px', fontWeight: 'bold', marginBottom: '8px', color: '#22d3ee'}}>
-				BLACK SHORE HEADQUARTERS
+				Black Shore HQ
 			</h1>
 			<p style={{color: '#94a3b8', marginBottom: '32px'}}>
 				Area Terbatas. Silakan identifikasi diri Anda.
