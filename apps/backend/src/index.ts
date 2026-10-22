@@ -1,109 +1,110 @@
-import { Hono } from 'hono'
-import { cors } from 'hono/cors'
-import { logger } from 'hono/logger'
-import { listTransaksi, createTransaksi, getSummary } from './lib/db'
-import { spreadsheetRoutes } from './routes/spreadsheet'
-import { authRoutes } from './routes/auth'
-import { chatRoutes } from './routes/chat'
-import { documentsRoutes } from './routes/document'
+import {Hono} from 'hono';
+import {cors} from 'hono/cors';
+import {logger} from 'hono/logger';
+import {listTransaksi, createTransaksi, getSummary} from './lib/db';
+import {spreadsheetRoutes} from './routes/spreadsheet';
+import {authRoutes} from './routes/auth';
+import {chatRoutes} from './routes/chat';
+import {documentsRoutes} from './routes/document';
 
 export type Bindings = {
-    ENVIRONMENT: string
-    black_shore_db: D1Database
-    OAUTH_KV: KVNamespace
-    GOOGLE_CLIENT_ID: string
-    GOOGLE_CLIENT_SECRET: string
-    GEMINI_API_KEY: string
-    JWT_SECRET: string
-    AI: any
-}
+	ENVIRONMENT: string;
+	black_shore_db: D1Database;
+	OAUTH_KV: KVNamespace;
+	GOOGLE_CLIENT_ID: string;
+	GOOGLE_CLIENT_SECRET: string;
+	GEMINI_API_KEY: string;
+	JWT_SECRET: string;
+	AI: any;
+};
 
-const app = new Hono<{ Bindings: Bindings }>()
+const app = new Hono<{Bindings: Bindings}>();
 
 // Middleware global
-app.use('*', logger())
+app.use('*', logger());
 app.use(
-    '*',
-    cors({
-        origin: [
-            'http://localhost:3000',
-            'http://localhost:8787',
-            'https://black-shore-frontend.vercel.app',
-            'https://black-shore-backend.cardinaldeacre.workers.dev',
-        ],
-        allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowHeaders: ['Content-Type', 'Authorization'],
-        credentials: true,
-    })
-)
+	'*',
+	cors({
+		origin: [
+			'http://localhost:3000',
+			'http://localhost:8787',
+			'https://black-shore.vercel.app',
+			'https://black-shore-backend.cardinaldeacre.workers.dev',
+		],
+		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+		allowHeaders: ['Content-Type', 'Authorization'],
+		credentials: true,
+	})
+);
 
 // Health & root
 app.get('/', (c) => {
-    return c.json({
-        name: 'Black Shore',
-        version: '0.1.0',
-        status: 'ok',
-        environment: c.env.ENVIRONMENT,
-        timestamp: new Date().toISOString(),
-    })
-})
+	return c.json({
+		name: 'Black Shore',
+		version: '0.1.0',
+		status: 'ok',
+		environment: c.env.ENVIRONMENT,
+		timestamp: new Date().toISOString(),
+	});
+});
 
-app.get('/health', (c) => c.json({ status: 'healthy' }))
+app.get('/health', (c) => c.json({status: 'healthy'}));
 
 app.get('/debug/routes', (c) => {
-    const routes = app.routes.map((r) => `${r.method} ${r.path}`)
-    return c.json({ routes })
-})
+	const routes = app.routes.map((r) => `${r.method} ${r.path}`);
+	return c.json({routes});
+});
 
 // Auth routes
-app.route('/auth', authRoutes)
+app.route('/auth', authRoutes);
 
-app.route('/api/chat', chatRoutes)
+app.route('/api/chat', chatRoutes);
 
 // Transaksi
 app.get('/api/transactions', async (c) => {
-    const bulan = c.req.query('bulan')
-    const limit = c.req.query('limit') ? Number(c.req.query('limit')) : undefined
-    const data = await listTransaksi(c.env.black_shore_db, {
-        bulan, limit,
-        userId: ''
-    })
-    return c.json({ data })
-})
+	const bulan = c.req.query('bulan');
+	const limit = c.req.query('limit') ? Number(c.req.query('limit')) : undefined;
+	const data = await listTransaksi(c.env.black_shore_db, {
+		bulan,
+		limit,
+		userId: '',
+	});
+	return c.json({data});
+});
 
 app.post('/api/transactions', async (c) => {
-    const body = await c.req.json()
-    const data = await createTransaksi(c.env.black_shore_db, body)
-    return c.json({ data }, 201)
-})
+	const body = await c.req.json();
+	const data = await createTransaksi(c.env.black_shore_db, body);
+	return c.json({data}, 201);
+});
 
 // Summary keuangan
 app.get('/api/summary', async (c) => {
-    const bulan = c.req.query('bulan') ?? new Date().toISOString().slice(0, 7)
-    const data = await getSummary(c.env.black_shore_db, bulan, c.req.query('userId') ?? 'guest')
-    return c.json({ data })
-})
+	const bulan = c.req.query('bulan') ?? new Date().toISOString().slice(0, 7);
+	const data = await getSummary(c.env.black_shore_db, bulan, c.req.query('userId') ?? 'guest');
+	return c.json({data});
+});
 
-// Spreadsheet 
-app.route('/api/spreadsheet', spreadsheetRoutes)
+// Spreadsheet
+app.route('/api/spreadsheet', spreadsheetRoutes);
 
 // Documents
-app.route('/api/documents', documentsRoutes)
+app.route('/api/documents', documentsRoutes);
 
 // 404 & error handler
 app.notFound((c) => {
-    return c.json({ error: 'Not Found', path: c.req.path }, 404)
-})
+	return c.json({error: 'Not Found', path: c.req.path}, 404);
+});
 
 app.onError((err, c) => {
-    console.error(`[Black Shore] Error:`, err)
-    return c.json(
-        {
-            error: 'Internal Server Error',
-            message: err.message,
-        },
-        500
-    )
-})
+	console.error(`[Black Shore] Error:`, err);
+	return c.json(
+		{
+			error: 'Internal Server Error',
+			message: err.message,
+		},
+		500
+	);
+});
 
-export default app
+export default app;
