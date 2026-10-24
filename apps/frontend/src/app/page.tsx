@@ -7,6 +7,7 @@ import ChatRoom from '@/components/ChatRoom';
 import Scene3D, {AgentId} from '@/components/Scene3D';
 import {useAuthSession} from '@/hooks/use-auth-session';
 import {useRouter} from 'next/dist/client/components/navigation';
+import BackgroundMusic from '@/components/BackgroundMusic';
 
 export default function HomePage() {
 	const [isChatOpen, setIsChatOpen] = useState(false);
@@ -82,14 +83,13 @@ export default function HomePage() {
 
 	return (
 		<main className="relative min-h-screen bg-slate-950 text-white flex flex-col items-center justify-between overflow-hidden select-none">
+			<BackgroundMusic />
 			<header className="absolute top-6 left-6 right-6 flex flex-wrap justify-between items-center gap-4 z-20 pointer-events-none">
 				<div className="pointer-events-auto">
 					<h1 className="text-xl font-bold tracking-wider text-cyan-400 drop-shadow">
 						BLACK SHORE // 3D OFFICE
 					</h1>
-					<p className="text-xs text-slate-400">
-						Biro Asisten AI — Lilly (Asisten Ayy) & Momo (Asisten Umii)
-					</p>
+					<p className="text-xs text-slate-400">Biro Asisten AI</p>
 				</div>
 
 				<div className="pointer-events-auto flex flex-wrap items-center gap-2.5">
