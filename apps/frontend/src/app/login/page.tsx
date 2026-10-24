@@ -1,10 +1,8 @@
 'use client';
 
 import {useEffect, useState} from 'react';
-import {useRouter} from 'next/navigation';
 
 export default function LoginPage() {
-	const router = useRouter();
 	const [isProcessing, setIsProcessing] = useState(true);
 
 	useEffect(() => {
@@ -13,6 +11,9 @@ export default function LoginPage() {
 		const error = params.get('error');
 
 		if (error === 'unauthorized') {
+			localStorage.removeItem('black_shore_session');
+			localStorage.removeItem('bs_user_id');
+			localStorage.removeItem('bs_user_email');
 			alert('Akses Ditolak: Email Anda tidak terdaftar di sistem Black Shore.');
 			setIsProcessing(false);
 			return;
@@ -44,10 +45,39 @@ export default function LoginPage() {
 			} else {
 				window.location.replace('/');
 			}
+			return;
 		}
-	}, [router]);
 
-	const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+		const existingToken = localStorage.getItem('black_shore_session');
+		if (existingToken) {
+			try {
+				const base64Payload = existingToken.split('.')[1];
+				if (base64Payload) {
+					const normalizedBase64 = base64Payload.replace(/-/g, '+').replace(/_/g, '/');
+					const decoded = JSON.parse(atob(normalizedBase64));
+					const isExpired = decoded.exp && decoded.exp * 1000 < Date.now();
+
+					if (!isExpired && decoded.email) {
+						localStorage.setItem('bs_user_id', decoded.email);
+						localStorage.setItem('bs_user_email', decoded.email);
+						window.location.replace('/');
+						return;
+					}
+				}
+			} catch (e) {
+				console.error('Token lama rusak:', e);
+			}
+			localStorage.removeItem('black_shore_session');
+		}
+
+		setIsProcessing(false);
+	}, []);
+
+	const handleGoogleLogin = () => {
+		const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+		const currentOrigin = encodeURIComponent(window.location.origin);
+		window.location.href = `${backendUrl}/auth/google/signin?origin=${currentOrigin}`;
+	};
 
 	if (isProcessing) {
 		return (
@@ -56,12 +86,30 @@ export default function LoginPage() {
 					backgroundColor: '#020617',
 					height: '100vh',
 					display: 'flex',
+					flexDirection: 'column',
+					gap: '12px',
 					justifyContent: 'center',
 					alignItems: 'center',
 					color: '#22d3ee',
 					fontFamily: 'sans-serif',
 				}}>
-				Memproses kredensial keamanan...
+				<div>Memproses kredensial keamanan...</div>
+				<button
+					onClick={() => {
+						localStorage.clear();
+						setIsProcessing(false);
+					}}
+					style={{
+						fontSize: '12px',
+						color: '#94a3b8',
+						background: 'transparent',
+						border: '1px solid #334155',
+						padding: '4px 10px',
+						borderRadius: '6px',
+						cursor: 'pointer',
+					}}>
+					Reset Sesi jika macet
+				</button>
 			</div>
 		);
 	}
@@ -86,9 +134,7 @@ export default function LoginPage() {
 			</p>
 
 			<button
-				onClick={() => {
-					window.location.href = `${backendUrl}/auth/google/signin`;
-				}}
+				onClick={handleGoogleLogin}
 				style={{
 					backgroundColor: '#f8fafc',
 					color: '#0f172a',

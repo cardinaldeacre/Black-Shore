@@ -6,7 +6,9 @@ export const authRoutes = new Hono<{Bindings: Bindings}>();
 
 authRoutes.get('/google/signin', (c) => {
 	const redirectUri = `${new URL(c.req.url).origin}/auth/google/callback`;
-	const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${c.env.GOOGLE_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=email profile https://www.googleapis.com/auth/documents&access_type=offline&prompt=consent`;
+	const clientOrigin = c.req.query('origin') || '';
+
+	const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${c.env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=email profile https://www.googleapis.com/auth/documents&access_type=offline&prompt=consent&state=${encodeURIComponent(clientOrigin)}`;
 	return c.redirect(url);
 });
 
@@ -72,9 +74,16 @@ authRoutes.get('/google/callback', async (c) => {
 		);
 
 		const url = new URL(c.req.url);
-		const isLocal = url.hostname.includes('localhost') || url.hostname.includes('127.0.0.1');
+		const stateOrigin = c.req.query('state');
+		const isLocalBackend = url.hostname.includes('localhost') || url.hostname.includes('127.0.0.1');
 
-		const frontendUrl = isLocal ? 'http://localhost:3000' : 'https://black-shore.vercel.app';
+		const allowedFrontendOrigins = ['http://localhost:3000', 'https://black-shore.vercel.app'];
+		const frontendUrl =
+			stateOrigin && allowedFrontendOrigins.includes(stateOrigin)
+				? stateOrigin
+				: isLocalBackend
+					? 'http://localhost:3000'
+					: 'https://black-shore.vercel.app';
 
 		return c.redirect(
 			// `${frontendUrl}?connected=true&userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}`
