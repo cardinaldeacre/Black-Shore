@@ -45,17 +45,17 @@ export default function HomePage() {
 		}));
 	};
 
-	const isLillyWorking =
-		workingDemo.lilly ||
-		(isChatOpen &&
-			(activeChatAgent === 'lilly' ||
-				(activeChatAgent === null && userEmail === 'umifirlana4@gmail.com')));
-
 	const isMomoWorking =
 		workingDemo.momo ||
 		(isChatOpen &&
 			(activeChatAgent === 'momo' ||
-				(activeChatAgent === null && userEmail === 'cardinaldeacre@gmail.com')));
+				(activeChatAgent === null && userEmail === process.env.NEXT_PUBLIC_BOSS_EMAIL_1)));
+
+	const isLillyWorking =
+		workingDemo.lilly ||
+		(isChatOpen &&
+			(activeChatAgent === 'lilly' ||
+				(activeChatAgent === null && userEmail === process.env.NEXT_PUBLIC_BOSS_EMAIL_2)));
 
 	const router = useRouter();
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
