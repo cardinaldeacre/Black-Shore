@@ -3,6 +3,10 @@
 **Black Shore** adalah aplikasi manajemen keuangan pribadi dan asisten AI interaktif dengan antarmuka 3D. Dibangun dengan arsitektur *monorepo serverless* yang modern, sistem ini dioptimalkan untuk performa tinggi 
 ---
 
+<img width="1917" height="1056" alt="Screenshot_20261027_091153" src="https://github.com/user-attachments/assets/24471afc-2e30-4729-8fee-46f0efaf64e9" />
+
+
+---
 ## 🏗️ Arsitektur & Tech Stack
 
 | Layer | Teknologi | Catatan |
