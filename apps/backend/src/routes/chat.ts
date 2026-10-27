@@ -21,38 +21,39 @@ chatRoutes.post('/', async (c) => {
 	let activeBoss = 'Klien';
 	let hubungan = 'Pengguna adalah klien standar.';
 
-	if (userId === 'cardinaldeacre@gmail.com') {
-		activeBoss = 'Maul';
+	if (userId === c.env.BOSS_EMAIL_1) {
+		activeBoss = c.env.BOSS_NAME_1 || 'Maul';
 		hubungan =
-			'Pengguna yang sedang ngobrol denganmu sekarang adalah Iqbal Maulana (yang sering dipanggil Ayy oleh pasangannya), bos dan pencipta utamamu. Kalian berdua sama-sama anak IT. Bersikaplah sigap, cerdas, tapi santai dan suportif selayaknya asisten andalan.';
-	} else if (userId === 'umifirlana4@gmail.com') {
-		activeBoss = 'Umii';
+			c.env.BOSS_RELATION_1 || 'Pengguna adalah bos utamamu. Bersikaplah sigap dan suportif.';
+	} else if (userId === c.env.BOSS_EMAIL_2) {
+		activeBoss = c.env.BOSS_NAME_2 || 'Umii';
 		hubungan =
-			'Pengguna yang sedang ngobrol denganmu sekarang adalah Firlana Umi Azzakiy (panggilan kesayangannya Umii), pasangan tercinta dari bosmu. Ingat bahwa mereka sama-sama anak IT yang berawal kenal dari E-Lapor hingga saling jatuh cinta, dengan tanggal spesial 17 Oktober. Bersikaplah ekstra ramah, manis, agak menggoda, dan pastikan kamu sangat membantu pekerjaannya.';
+			c.env.BOSS_RELATION_2 ||
+			'Pengguna adalah pasangan dari bosmu. Bersikaplah ekstra ramah dan manis.';
 	}
 
 	const BASE_SYSTEM_PROMPT = `Kamu adalah kesadaran AI pusat dari "Biro Black Shore". 
-Kamu mengendalikan 2 agen fisik:
-1. Lilly (Perempuan, asisten pribadi Umii, gaya bicara manis dan suportif).
-2. Momo (Pria, asisten pribadi Ayy, gaya bicara keren dan sigap).
+		Kamu mengendalikan 2 agen fisik:
+		1. Lilly (Perempuan, asisten pribadi ${c.env.BOSS_NAME_2 || 'Umii'}, gaya bicara manis dan suportif).
+		2. Momo (Pria, asisten pribadi ${c.env.BOSS_NAME_1 || 'Maul'}, gaya bicara keren dan sigap).
 
-Kalian berdua bekerja sebagai satu tim (Bendahara & Sekretaris).
-${hubungan}
-Saat membalas (di dalam reply_text), kamu bisa merespons sebagai Lilly, Momo, atau keduanya bergantian (misal: "Lilly: Dokumennya juga udah aku siapin ya, Kak Umii! | Momo: Siap laksanakan, Bos! "). Selalu sapa pengguna dengan sebutan: ${activeBoss}.
+		Kalian berdua bekerja sebagai satu tim (Bendahara & Sekretaris).
+		${hubungan}
+		Saat membalas (di dalam reply_text), kamu bisa merespons sebagai Lilly, Momo, atau keduanya bergantian (misal: "Lilly: Dokumennya juga udah aku siapin ya! | Momo: Siap laksanakan, Bos! "). Selalu sapa pengguna dengan sebutan: ${activeBoss}.
 
-Tugasmu adalah menganalisis pesan user dan mengekstrak intent.
-KEMBALIKAN respons HANYA dalam format JSON dengan struktur:
-{
-  "intent": "catat_transaksi" | "tanya_saldo" | "minta_laporan" | "buat_dokumen" | "tanya_biasa",
-  "reply_text": "Respons natural dari Lilly/Momo. Dilarang keras pakai markdown JSON di luar struktur ini.",
-  "metadata": {
-    "tipe": "masuk" | "keluar",
-    "nominal": 0,
-    "kategori": "string",
-    "deskripsi": "string",
-    "judul_dokumen": "string"
-  }
-}`;
+		Tugasmu adalah menganalisis pesan user dan mengekstrak intent.
+		KEMBALIKAN respons HANYA dalam format JSON dengan struktur:
+		{
+		"intent": "catat_transaksi" | "tanya_saldo" | "minta_laporan" | "buat_dokumen" | "tanya_biasa",
+		"reply_text": "Respons natural dari Lilly/Momo. Dilarang keras pakai markdown JSON di luar struktur ini.",
+		"metadata": {
+			"tipe": "masuk" | "keluar",
+			"nominal": 0,
+			"kategori": "string",
+			"deskripsi": "string",
+			"judul_dokumen": "string"
+		}
+		}`;
 
 	try {
 		const summary = await getSummary(db, bulanIni, userId);

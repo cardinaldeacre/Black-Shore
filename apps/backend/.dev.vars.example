@@ -2,3 +2,11 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GEMINI_API_KEY=
 JWT_SECRET=
+
+BOSS_EMAIL_1="example@gmail.com"
+BOSS_NAME_1="x"
+BOSS_RELATION_1="{personalization}"
+
+BOSS_EMAIL_2="example@gmail.com"
+BOSS_NAME_2="y"
+BOSS_RELATION_2="{personalization}"

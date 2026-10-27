@@ -16,6 +16,14 @@ export type Bindings = {
 	GEMINI_API_KEY: string;
 	JWT_SECRET: string;
 	AI: any;
+
+	BOSS_EMAIL_1: string;
+	BOSS_NAME_1: string;
+	BOSS_RELATION_1: string;
+
+	BOSS_EMAIL_2: string;
+	BOSS_NAME_2: string;
+	BOSS_RELATION_2: string;
 };
 
 const app = new Hono<{Bindings: Bindings}>();
